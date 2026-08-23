@@ -64,10 +64,11 @@ extension Commands {
                 lines.append("  \(resolved.count) baselined violations no longer occur — "
                     + "run `keystone-swift baseline` to bank that progress.")
             }
-        } else {
+        } else if !result.violations.isEmpty {
             lines.append("")
-            lines.append("No baseline recorded. `keystone-swift baseline` accepts today's \(result.violations.count) "
-                + "violations as existing debt so that only new work is held to the rules.")
+            lines.append("No baseline recorded. `keystone-swift baseline` accepts today's "
+                + "\(result.violations.count) violations as existing debt, so that only new work is held to "
+                + "the rules and the number can go down but not up.")
         }
 
         lines.append("")
