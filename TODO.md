@@ -62,24 +62,31 @@ SwiftLint's, which is better integrated.
 
 ## In the reference project
 
-**Clean.** `✓ 349 files, no violations`, from twenty-six errors and fifty-nine
-warnings. Every UI package has a snapshot suite with its references committed;
-doubles that two suites share live in a `TestSupport` module belonging to
-whichever package owns the protocol they stand in for.
+**Clean, and green.** `✓ 348 files, no violations`, from twenty-six errors and
+fifty-nine warnings; all 48 test schemes pass. Every UI package has a snapshot
+suite with its references committed, and doubles two suites share live in the
+package that owns the protocol they stand in for.
 
-The one manifest in the repository holds three exemptions and the reasons for
-them — `Product` keeps no store because its catalogue is fetched rather than
-persisted, `SearchHistory` no DTO because it never crosses a wire, `Session`
-groups its stores in subfolders because it has eight data files where its
-neighbours have two to four. That is a decision record, which is what a manifest
-is for; the layout is still read from the repository.
+Its `keystone-swift.json` holds three exemptions and the reasons for them —
+Product fetches its catalogue rather than storing it, SearchHistory never
+crosses a wire, Session groups its stores because it has eight data files where
+its neighbours have two to four. That is a decision record, which is what a
+manifest is for; the layout is still read from the repository.
 
-`ProductActionsUIAcceptanceTests` is flaky — it failed once and passed on three
-further runs, including one against the committed tree with every change
-stashed. Not caused by this work, but worth knowing about.
+`ProductCardRowView` could not be snapshotted: three asynchronously loaded
+images behind spinners land on a different frame every run. The single-card case
+is stable, so the row is covered by two card states instead — a fact about the
+view, not the tool.
 
-`ProductCardRowView` could not be snapshotted: it renders three asynchronously
-loaded images behind spinners, and three spinners land on a different frame of
-the animation every run. The single-card case is stable, so the row is covered
-by two card states instead. That is a fact about the view rather than about the
-tool — a view whose appearance cannot be pinned cannot be regression-tested.
+## What the tool cannot see
+
+`keystone-swift check` reported zero violations against a project that did not
+compile. It reads structure — layers, dependencies, placement — and knows
+nothing about types. Every file was in the right layer and every dependency
+declared while a double had lost a member its callers still used.
+
+A `--build` mode that shells out to `xcodebuild` and reports failures in the
+same format has an obvious appeal and is probably wrong: it would make the tool
+own a toolchain, a destination and a scheme list, and it would be slower than
+the build it wraps. The honest fix is documentation — the check is not a
+substitute for building — and possibly a `doctor` line saying so.
