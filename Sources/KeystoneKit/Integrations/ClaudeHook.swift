@@ -102,13 +102,14 @@ public struct ClaudeHook: Sendable {
         case "Stop", "SubagentStop":
             return closeOut(root: root, configuration: configuration)
         default:
-            return beforeTool(json: json, file: file, root: root, configuration: configuration)
+            return beforeTool(json: json, file: file, cwd: cwd, root: root, configuration: configuration)
         }
     }
 
     private func beforeTool(
         json: [String: Any],
         file: String?,
+        cwd: String,
         root: String,
         configuration: Configuration
     ) -> HookResponse {
@@ -121,6 +122,11 @@ public struct ClaudeHook: Sendable {
             guard ClaudeHook.shellWrite.firstMatch(in: command, options: [], range: range) != nil else {
                 return .allow
             }
+            // Only files inside the project. Writing a scratch file somewhere
+            // else is nobody's business: the rule is that this project's source
+            // must go through a checked tool, not that the agent may never
+            // redirect into a `.swift` file anywhere on the machine.
+            guard ClaudeHook.touchesProject(command: command, cwd: cwd, root: root) else { return .allow }
             return .deny(
                 "This writes a Swift file through the shell, which goes around the architecture check.\n\n"
                 + "Use the Write or Edit tool instead, so the change is checked before it lands."
@@ -169,6 +175,21 @@ public struct ClaudeHook: Sendable {
             + "\n\nFix these before finishing. If a rule is wrong for this project, change "
             + "`\(ConfigurationLoader.fileName)` and say why — do not work around it."
         )
+    }
+
+    /// Whether a shell command names a Swift file inside the project.
+    static func touchesProject(command: String, cwd: String, root: String) -> Bool {
+        guard let paths = try? NSRegularExpression(pattern: #"\S+\.swift\b"#) else { return true }
+        let range = NSRange(command.startIndex..<command.endIndex, in: command)
+
+        for match in paths.matches(in: command, options: [], range: range) {
+            guard let found = Range(match.range, in: command) else { continue }
+            let raw = String(command[found]).trimmingCharacters(in: CharacterSet(charactersIn: "\"'`"))
+            let absolute = raw.hasPrefix("/") ? Paths.canonical(raw) : Paths.absolute(raw, in: cwd)
+            // `relative` returns the input unchanged when it is outside.
+            if Paths.relative(absolute, to: root) != absolute { return true }
+        }
+        return false
     }
 
     /// The content the file will have if this call is permitted.

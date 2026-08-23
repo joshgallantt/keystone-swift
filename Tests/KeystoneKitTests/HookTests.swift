@@ -134,6 +134,14 @@ struct ClaudeHookTests {
             Issue.record("an ordinary command must not be refused")
             return
         }
+
+        // A scratch file outside the project is nobody's business. The rule is
+        // that this project's source goes through a checked tool, not that the
+        // agent may never redirect into a `.swift` file anywhere on the machine.
+        guard case .allow = bash("cat > /tmp/elsewhere/Scratch.swift") else {
+            Issue.record("a file outside the project must not be refused")
+            return
+        }
     }
 
     @Test("a warning is surfaced without blocking the write")
