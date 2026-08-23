@@ -125,6 +125,25 @@ something an agent can be pointed at and told to work through.
 
 Delete the baseline when the project is clean, and the rules become absolute.
 
+## Scope
+
+A codebase being refactored needs more than "is the whole thing sound".
+
+```bash
+keystone-swift check                    the whole project
+keystone-swift check --changed          what this branch changed, uncommitted work included
+keystone-swift check --staged           what is staged for the next commit
+keystone-swift check --branch feature/x what that branch changed against the trunk
+keystone-swift check --commit a1b2c3d   what one commit touched
+keystone-swift check --at v2.0.0        the project as it stood at a ref
+```
+
+*Which files* and *which tree* are separate questions, and conflating them is how a
+tool ends up lying about history. `--commit` reads that commit's tree, not today's
+working copy — reviewing last month's commit against today's files would report
+violations in code it never contained. `--at` sets the tree independently when you want
+the other combination.
+
 ## The rules
 
 **Boundaries** — errors
@@ -132,7 +151,7 @@ Delete the baseline when the project is clean, and the rules become absolute.
 | Rule | What it refuses |
 | --- | --- |
 | `dependency-rule` | A layer importing a layer it may not reach |
-| `target-dependency-rule` | The same thing, declared in `Package.swift` or `project.pbxproj` |
+| `target-dependency-rule` | The same, declared in `Package.swift` or `project.pbxproj` |
 | `framework-purity` | A layer importing a framework *category* it refuses — `ui`, `persistence`, `crypto` |
 | `restricted-symbols` | `URLSession`, `FileManager` and friends arriving inside an allowed `Foundation` |
 | `third-party-boundary` | A stable layer taking a dependency on somebody else's release schedule |
@@ -140,35 +159,111 @@ Delete the baseline when the project is clean, and the rules become absolute.
 | `feature-isolation` | Sibling modules depending on each other, where a layer asks for that |
 | `type-reference-boundary` | A boundary crossed inside one module, where no import can catch it |
 
-**Placement** — errors
+**Structure** — errors
 
 | Rule | What it refuses |
 | --- | --- |
-| `declaration-placement` | `*UseCase`, `*Repository`, `*DTO`, `*ViewModel`, `*View`, `*Client` in the wrong layer |
+| `declaration-placement` | `*UseCase`, `*Repository`, `*DTO`, `*ViewModel`, `*View` in the wrong layer |
 | `extension-boundary` | One layer reopening another layer's types |
+| `no-extensions` | An extension that neither declares a conformance, extends a protocol, nor carries a constraint |
 
-**Warnings** — reported, never blocking
+**Testing** — errors, except where noted
+
+| Rule | What it checks |
+| --- | --- |
+| `test-tiers` | Every test file belongs to a declared tier |
+| `support-separation` | `Support/` declares no tests |
+| `tests-assert-something` | A file in a tier declares at least one |
+| `doubles-live-in-support` | `Stub*`/`Spy*`/`Mock*`/`Fake*`/`Dummy*` outside `Support/` |
+| `doubles-are-uniquely-named` | Two doubles sharing a name across the repository |
+| `acceptance-vocabulary` | An acceptance test naming a type the data layer declared |
+| `test-names-read-as-prose` | A business-facing test named as an identifier |
+| `tier-required` | A package that owes a tier and has none |
+| `test-pyramid` | More journeys than unit tests *(warning)* |
+| `no-shared-fixtures` | A file of shared test data *(warning)* |
+| `snapshots-are-committed` | A snapshot suite with nothing recorded *(warning)* |
+
+**Warnings**
 
 | Rule | What it reports |
 | --- | --- |
+| `peer-consistency` | What most sibling packages have and one does not |
+| `layer-vocabulary` | A domain protocol named for the wire — `*Client`, `*API`, `*Gateway` |
 | `imports-are-declared` | A module imported but reached only transitively |
 | `contract-before-implementation` | A `Default*` or `*Impl` that implements nothing |
 | `no-shared-singletons` | A dependency reached for rather than passed in |
 | `no-todo` | Work recorded where nobody will look for it |
 | `unclassified-files` | A file no layer claims, and therefore no rule examined |
 
-That last one matters more than it looks. Silence is every architecture checker's failure mode: a
-file nothing claims passes everything, and a project can be entirely "clean" while most of it is
-unexamined. During a migration it is also the progress bar.
+That last one matters more than it looks. Silence is every architecture checker's
+failure mode: a file nothing claims passes everything, and a project can be entirely
+"clean" while most of it is unexamined. During a migration it is also the progress bar.
 
-Change a severity or switch a rule off in `keystone-swift.json`:
+### Conventions that are not defaults
+
+`clients-live-in-data` and `stores-live-in-data` are deliberately absent. Both read well
+until you meet the app they are wrong for — a CRM whose `Client` is its most important
+entity, a retail app whose `Store` is a place on a map. `UseCase`, `Repository`, `DTO`,
+`ViewModel` and `View` name *patterns*, so they ship as defaults; a suffix that is also
+an ordinary noun cannot. Add them if they suit your domain:
 
 ```json
-{
-  "severities": { "no-todo": "error" },
-  "disabledRules": ["imports-are-declared"]
-}
+{ "name": "clients-live-in-data",
+  "match": { "nameSuffix": "Client", "kinds": ["struct", "class", "actor"] },
+  "requireRole": ["data"], "exemptRoles": ["tests", "composition", "library"] }
 ```
+
+The same principle runs through the tool: `layer-vocabulary` flags a domain **protocol**
+named `*Client`, because that is a service that borrowed a word from the layer below it,
+and never a **struct** named `Client`, because that is somebody's whole business.
+
+## Testing
+
+Three tiers, because they answer different questions. An acceptance failure says *this
+stopped working*; a unit failure says *which rule is wrong*; neither can tell you a
+screen now lays something out wrongly.
+
+```
+<Package>/Tests/
+  <Package>AcceptanceTests/
+    BrowsingTests.swift              journeys — @Test("Someone who … ends up with …")
+    Support/
+      Store.swift                    the world: setting up what exists
+      Shopper.swift                  the actor: the vocabulary the tests speak
+      AThing.swift                   test data builders
+  <Package>UnitTests/
+    ThingTests.swift
+    Support/
+      Doubles.swift                  StubThing, SpyThing
+  <Package>SnapshotTests/            packages with views
+    ScreenSnapshots.swift
+    __Snapshots__/                   committed
+```
+
+The `Support/` split is what makes everything else checkable. Without it a test target
+is a bag of files and you cannot ask whether a suite asserts anything, or whether a
+helper has grown assertions of its own.
+
+Doubles carry their kind in the name, from Meszaros' *xUnit Test Patterns* by way of
+Fowler's [Mocks Aren't Stubs](https://martinfowler.com/articles/mocksArentStubs.html) —
+a `Stub` answers, a `Spy` records, a `Mock` expects, a `Fake` works. The kind tells the
+reader whether the test verifies state or behaviour.
+
+**On Cucumber.** The discipline, not the tooling. Gherkin runners for Swift are dated or
+unmaintained, and buy `.feature` files at the cost of an indirection between the sentence
+and the code. `@Test("…")` gives the readable sentence natively, and unlike a runner,
+keystone-swift can *enforce* the rest: prose names, and nothing from the data layer
+named in the suite. A Gherkin runner would happily execute a feature file full of
+`FakeCatalog`.
+
+**On snapshots.** Apple ships none — not in Swift Testing, not in XCTest. The standard is
+[pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing),
+which has native Swift Testing support. `snapshots-are-committed` exists because a
+snapshot suite whose references are not in the repository writes them on every run and
+compares them against itself: green in CI, and never once able to fail.
+
+`Tests/Fixtures/CleanApp/` in this repository is a complete worked example of the layout,
+and the test suite holds it to every rule.
 
 ## Agents
 
@@ -217,7 +312,7 @@ on inherited debt.
 | Command | |
 | --- | --- |
 | `init` | Read the project and write `keystone-swift.json` for review |
-| `check` | Check the project. `--changed` for this branch only, `--json` for machines |
+| `check` | Check the project. See [Scope](#scope) for `--changed`, `--commit`, `--at` |
 | `status` | Which layers exist, what is unclassified, how much debt is left |
 | `baseline` | Record today's violations as accepted |
 | `rules` | Print the architecture as a document for an agent to read |
