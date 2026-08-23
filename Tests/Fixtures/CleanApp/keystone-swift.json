@@ -1,0 +1,299 @@
+{
+  "conventions" : [
+    {
+      "exemptRoles" : [
+        "tests",
+        "composition"
+      ],
+      "match" : {
+        "kinds" : [
+          "protocol",
+          "struct",
+          "class",
+          "actor",
+          "enum"
+        ],
+        "nameSuffix" : "UseCase"
+      },
+      "name" : "use-cases-live-in-domain",
+      "reason" : "A use case is application-specific business logic, so it belongs beside the rules it coordinates rather than beside the screen that happens to call it first.",
+      "requireRole" : [
+        "domain"
+      ],
+      "source" : "Robert C. Martin, Clean Architecture (2017), Ch. 20 — Business Rules."
+    },
+    {
+      "exemptRoles" : [
+        "tests"
+      ],
+      "match" : {
+        "kinds" : [
+          "protocol"
+        ],
+        "nameSuffix" : "Repository"
+      },
+      "name" : "repository-contracts-live-in-domain",
+      "reason" : "The contract belongs to the layer that needs it satisfied; only the implementation belongs to the layer that satisfies it. That split is what points the dependency inward.",
+      "requireRole" : [
+        "domain"
+      ],
+      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 18 — Separated Interface."
+    },
+    {
+      "exemptRoles" : [
+        "tests",
+        "composition"
+      ],
+      "match" : {
+        "kinds" : [
+          "struct",
+          "class",
+          "actor"
+        ],
+        "nameSuffix" : "Repository"
+      },
+      "name" : "repository-implementations-live-in-data",
+      "reason" : "A concrete repository is infrastructure. Put it in the data layer and let the composition root hand it to the domain as the protocol.",
+      "requireRole" : [
+        "data"
+      ],
+      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
+    },
+    {
+      "exemptRoles" : [
+        "tests"
+      ],
+      "match" : {
+        "kinds" : [
+          "struct",
+          "class",
+          "enum"
+        ],
+        "nameSuffix" : "DTO"
+      },
+      "name" : "dtos-live-in-data",
+      "reason" : "A DTO is a wire format, not a business concept. It must not escape the data layer — map it to a domain type at the boundary and let the shape of the payload stop there.",
+      "requireRole" : [
+        "data"
+      ],
+      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 15 — Data Transfer Object."
+    },
+    {
+      "exemptRoles" : [
+        "tests",
+        "composition"
+      ],
+      "match" : {
+        "kinds" : [
+          "struct",
+          "class",
+          "actor"
+        ],
+        "nameSuffix" : "ViewModel"
+      },
+      "name" : "view-models-live-in-presentation",
+      "reason" : "A view model is presentation. One living anywhere else means business logic has followed it there.",
+      "requireRole" : [
+        "presentation"
+      ],
+      "source" : "Robert C. Martin, Clean Architecture (2017), Ch. 23 — Presenters and Humble Objects."
+    },
+    {
+      "exemptRoles" : [
+        "tests",
+        "composition"
+      ],
+      "match" : {
+        "kinds" : [
+          "struct"
+        ],
+        "nameSuffix" : "View"
+      },
+      "name" : "views-live-in-presentation",
+      "reason" : "A view is presentation, and a view declared outside it is a layer drawing its own screen.",
+      "requireRole" : [
+        "presentation"
+      ],
+      "source" : "Robert C. Martin, Clean Architecture (2017), Ch. 23 — Presenters and Humble Objects."
+    },
+    {
+      "exemptRoles" : [
+        "tests",
+        "composition",
+        "library"
+      ],
+      "match" : {
+        "kinds" : [
+          "struct",
+          "class",
+          "actor"
+        ],
+        "nameSuffix" : "Client"
+      },
+      "name" : "clients-live-in-data",
+      "reason" : "A concrete client speaks a remote system's language. Keep it in data and give the domain a protocol phrased in the business's language instead.",
+      "requireRole" : [
+        "data"
+      ],
+      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
+    },
+    {
+      "exemptRoles" : [
+        "tests",
+        "composition",
+        "library"
+      ],
+      "match" : {
+        "kinds" : [
+          "struct",
+          "class",
+          "actor"
+        ],
+        "nameSuffix" : "Store"
+      },
+      "name" : "stores-live-in-data",
+      "reason" : "A store is persistence. If this type is holding view state rather than writing to disk, rename it — the suffix is telling readers something untrue.",
+      "requireRole" : [
+        "data"
+      ],
+      "severity" : "warning",
+      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
+    }
+  ],
+  "exclude" : [
+    "**/.build/**",
+    "**/build/**",
+    "**/DerivedData/**",
+    "**/.swiftpm/**",
+    "**/Pods/**",
+    "**/Carthage/**",
+    "**/vendor/**",
+    "**/*.generated.swift",
+    "**/Generated/**"
+  ],
+  "extensionBoundaries" : [
+    {
+      "declaredIn" : [
+        "domain"
+      ],
+      "from" : [
+        "presentation"
+      ],
+      "reason" : "A screen may not add members to a domain type. The member then exists in the module that added it and silently does not in the one next door, which grows its own copy of the same rule. Build a presentation model instead: a struct this screen owns, holding already-worded values, mapped from the domain type by an initialiser in its own body."
+    }
+  ],
+  "name" : "CleanApp",
+  "roles" : {
+    "composition" : {
+      "allowsThirdParty" : true,
+      "description" : "The one place that knows every concrete type. Wiring, and nothing else.",
+      "mayDependOn" : [
+        "*"
+      ],
+      "paths" : [
+        "*/*/Sources/DI/**"
+      ],
+      "reason" : "Composition is allowed to know about everything, which is precisely why nothing else has to. Keep behaviour out of it: if this code does something other than choosing and connecting implementations, it belongs in a layer.",
+      "sameRole" : "allow"
+    },
+    "data" : {
+      "allowsThirdParty" : true,
+      "deniedFrameworks" : [
+        "ui"
+      ],
+      "description" : "Implementations of the domain's contracts: repositories, clients, stores, DTOs.",
+      "mayDependOn" : [
+        "domain",
+        "library"
+      ],
+      "paths" : [
+        "Component/*/Sources/Data/**"
+      ],
+      "reason" : "The data layer answers to the domain and to nothing above it. If it needs something a screen has, the dependency is inverted — pass it in from the composition root instead.",
+      "sameRole" : "denyAcrossPackages"
+    },
+    "domain" : {
+      "allowsThirdParty" : false,
+      "deniedFrameworks" : [
+        "ui",
+        "persistence",
+        "networking",
+        "crypto",
+        "media",
+        "system"
+      ],
+      "deniedSymbols" : [
+        "URLSession",
+        "URLRequest",
+        "URLComponents",
+        "FileManager",
+        "UserDefaults",
+        "NSManagedObject",
+        "NSPersistentContainer",
+        "NotificationCenter",
+        "Bundle"
+      ],
+      "description" : "Entities, use cases and the contracts they are satisfied through. The stable centre.",
+      "mayDependOn" : [
+
+      ],
+      "paths" : [
+        "Component/*/Sources/Domain/**"
+      ],
+      "reason" : "The domain states the business rules and declares what it needs as protocols. Anything that talks to a network, a disk, a framework or a screen is a detail: put the protocol here and the implementation in the layer that owns that detail, then let the composition root introduce them. Source code dependencies point inward, never out.",
+      "sameRole" : "allow"
+    },
+    "library" : {
+      "allowsThirdParty" : true,
+      "deniedFrameworks" : [
+        "ui"
+      ],
+      "description" : "Domain-free utilities. A library knows nothing about the app that links it.",
+      "mayDependOn" : [
+        "library"
+      ],
+      "paths" : [
+        "Library/**"
+      ],
+      "reason" : "A library must stay ignorant of the app linking it. If it needs a domain type it is not a library — move it into the component that owns that concept.",
+      "sameRole" : "allow"
+    },
+    "presentation" : {
+      "allowsThirdParty" : true,
+      "deniedFrameworks" : [
+        "persistence",
+        "networking",
+        "crypto"
+      ],
+      "deniedSymbols" : [
+        "URLSession",
+        "URLRequest",
+        "FileManager",
+        "UserDefaults",
+        "NSManagedObject"
+      ],
+      "description" : "Views and view models. Views are passive; view models delegate to use cases.",
+      "mayDependOn" : [
+        "domain",
+        "library"
+      ],
+      "paths" : [
+        "UI/*/Sources/UI/**"
+      ],
+      "reason" : "A screen reaches the domain and never storage. Take the use case protocol through the initialiser and let the composition root decide which concrete type satisfies it — that is what makes the screen testable without a network or a database.",
+      "sameRole" : "allow"
+    },
+    "tests" : {
+      "allowsThirdParty" : true,
+      "description" : "Test targets. Free to reach anywhere, since a test's job is to hold the rest to account.",
+      "mayDependOn" : [
+        "*"
+      ],
+      "paths" : [
+        "Component/*/Tests/**"
+      ],
+      "sameRole" : "allow"
+    }
+  },
+  "version" : 1
+}

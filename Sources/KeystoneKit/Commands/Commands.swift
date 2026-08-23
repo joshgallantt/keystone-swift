@@ -17,7 +17,7 @@ public enum Commands {
         do {
             let configuration = try ConfigurationLoader.load(at: path)
             let root = explicit != nil ? arguments.root : Paths.directory(of: path)
-            return (root.isEmpty ? arguments.root : root, configuration)
+            return (Paths.canonical(root.isEmpty ? arguments.root : root), configuration)
         } catch {
             Output.error("\(error)")
             return nil

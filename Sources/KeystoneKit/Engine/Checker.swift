@@ -44,6 +44,7 @@ public struct Checker: Sendable {
         configuration: Configuration,
         limitedTo paths: Set<String>? = nil
     ) -> CheckResult {
+        let root = Paths.canonical(root)
         let scanner = ProjectScanner(fileSystem: fileSystem)
         let scanned = scanner.scan(root: root, configuration: configuration)
         let assignment = RoleAssignment(
@@ -100,6 +101,7 @@ public struct Checker: Sendable {
         configuration: Configuration,
         pending: PendingFile
     ) -> CheckResult {
+        let root = Paths.canonical(root)
         let scanner = ProjectScanner(fileSystem: fileSystem)
         let scanned = scanner.scan(root: root, configuration: configuration)
 

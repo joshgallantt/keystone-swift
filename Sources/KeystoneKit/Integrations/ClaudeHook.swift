@@ -73,7 +73,7 @@ public struct ClaudeHook: Sendable {
             return .allow
         }
 
-        let cwd = (json["cwd"] as? String) ?? defaultRoot
+        let cwd = Paths.canonical((json["cwd"] as? String) ?? defaultRoot)
         let event = (json["hook_event_name"] as? String) ?? ""
 
         guard let configurationPath = ConfigurationLoader.discover(from: cwd),

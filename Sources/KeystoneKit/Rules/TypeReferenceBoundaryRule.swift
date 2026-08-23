@@ -23,15 +23,15 @@ public struct TypeReferenceBoundaryRule: Rule {
         var violations: [Violation] = []
 
         for file in context.files {
-            guard let role = file.role, let definition = context.definition(for: role),
-                  let moduleName = file.module?.name else { continue }
+            guard let role = file.role, let definition = context.definition(for: role) else { continue }
+            let scope = file.module?.name
 
             let declaredHere = Set(file.facts.declarations.map(\.name))
 
             for reference in file.facts.typeReferences {
                 guard !declaredHere.contains(reference.name),
                       !context.symbols.isAmbiguous(reference.name),
-                      context.symbols.declaringModules(of: reference.name) == [moduleName],
+                      context.symbols.declaringScopes(of: reference.name) == [scope],
                       let declaringRole = context.symbols.declaringRole(of: reference.name),
                       declaringRole != role
                 else { continue }

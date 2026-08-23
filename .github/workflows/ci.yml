@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: build-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: build-${{ runner.os }}-
+
+      - name: Test
+        run: swift test
+
+      # The unit tests can only prove the rules fire on the fixtures they were
+      # written against. This proves the assembled binary agrees with them, and
+      # that a correct project still comes out clean end to end.
+      - name: Check the fixtures through the built binary
+        run: |
+          swift build -c release
+          BIN="$(swift build -c release --show-bin-path)/keystone-swift"
+          "$BIN" check --root Tests/Fixtures/CleanApp --no-colour
+          "$BIN" check --root Tests/Fixtures/MonolithApp --no-colour
+
+      - name: Refuse a violation
+        run: |
+          BIN="$(swift build -c release --show-bin-path)/keystone-swift"
+          printf 'import SwiftUI\npublic struct Broken {}\n' > /tmp/broken.swift
+          if "$BIN" check --root Tests/Fixtures/CleanApp \
+               --file Component/Catalog/Sources/Domain/Model/Broken.swift < /tmp/broken.swift; then
+            echo "A domain file importing SwiftUI was allowed. The check is not doing anything." >&2
+            exit 1
+          fi

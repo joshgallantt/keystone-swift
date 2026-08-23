@@ -29,8 +29,7 @@ public struct ExtensionBoundaryRule: Rule {
             for declaration in file.facts.extensions {
                 // Extending a type the same module declared is ordinary code
                 // organisation, not a boundary crossing.
-                if let moduleName = file.module?.name,
-                   context.symbols.declaringModules(of: declaration.name) == [moduleName] {
+                if context.symbols.declaringScopes(of: declaration.name) == [file.module?.name] {
                     continue
                 }
                 guard !context.symbols.isAmbiguous(declaration.name),

@@ -66,7 +66,7 @@ public struct TextReport: Sendable {
         let warnings = result.warnings.count
 
         if errors == 0 && warnings == 0 && baselined == 0 {
-            return paint("✓ \(result.filesChecked) files, no violations", .green)
+            return paint("✓ \(count(result.filesChecked, "file")), no violations", .green)
         }
 
         var parts: [String] = []
@@ -74,11 +74,15 @@ public struct TextReport: Sendable {
         if warnings > 0 { parts.append(paint("\(warnings) \(warnings == 1 ? "warning" : "warnings")", .yellow)) }
         if parts.isEmpty { parts.append(paint("no new violations", .green)) }
 
-        var line = parts.joined(separator: ", ") + " in \(result.filesChecked) files"
+        var line = parts.joined(separator: ", ") + " in \(count(result.filesChecked, "file"))"
         if baselined > 0 {
             line += paint("  ·  \(baselined) already accepted as existing debt", .dim)
         }
         return line
+    }
+
+    private func count(_ number: Int, _ noun: String) -> String {
+        "\(number) \(noun)\(number == 1 ? "" : "s")"
     }
 
     // MARK: - Presentation

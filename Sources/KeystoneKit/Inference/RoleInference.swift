@@ -31,6 +31,7 @@ public struct RoleInference: Sendable {
     }
 
     public func infer(root: String, exclude: [String] = Configuration.defaultExclusions) -> InferenceReport {
+        let root = Paths.canonical(root)
         let base = Configuration(exclude: exclude)
         let scanned = ProjectScanner(fileSystem: fileSystem).scan(root: root, configuration: base)
         let catalog = base.catalog
@@ -102,6 +103,8 @@ public struct RoleInference: Sendable {
             fileCounts[role, default: 0] += 1
         }
 
+        let packageDirectories = Set(scanned.graph.orderedModules.compactMap(\.packageDirectory))
+
         var patterns: [Role: [String]] = [:]
         for role in Role.conventionalOrder {
             let own = Array(directoriesByRole[role] ?? [])
@@ -109,7 +112,7 @@ public struct RoleInference: Sendable {
             let others = directoriesByRole
                 .filter { $0.key != role }
                 .flatMap { Array($0.value) }
-            patterns[role] = PathGeneralizer.generalize(own, avoiding: others)
+            patterns[role] = PathGeneralizer.generalize(own, avoiding: others, packages: packageDirectories)
         }
 
         var configuration = Presets.cleanArchitecture(paths: patterns)

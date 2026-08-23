@@ -89,8 +89,7 @@ public struct Arguments: Sendable {
     public func value(_ name: String) -> String? { values[name] }
 
     public var root: String {
-        let given = values["root"] ?? FileManager.default.currentDirectoryPath
-        return URL(fileURLWithPath: given).standardizedFileURL.path
+        Paths.canonical(values["root"] ?? FileManager.default.currentDirectoryPath)
     }
 }
 

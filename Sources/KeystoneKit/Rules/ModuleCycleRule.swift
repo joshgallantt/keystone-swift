@@ -102,7 +102,7 @@ public struct ModuleCycleRule: Rule {
                     result.append(component.sorted())
                 }
 
-                if var parent = work.popLast() {
+                if let parent = work.popLast() {
                     lowLinks[parent.node] = min(lowLinks[parent.node]!, lowLinks[frame.node]!)
                     work.append(parent)
                 }

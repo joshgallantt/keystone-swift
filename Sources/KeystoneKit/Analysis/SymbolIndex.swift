@@ -42,8 +42,7 @@ public struct SymbolIndex: Sendable {
     /// meant — so ambiguity is reported as such and the rule declines rather
     /// than picking one and being right half the time.
     public func isAmbiguous(_ name: String) -> Bool {
-        let modules = Set(declarations(of: name).compactMap(\.module))
-        return modules.count > 1
+        declaringScopes(of: name).count > 1
     }
 
     /// The role that declared a name, when exactly one layer did.
@@ -57,6 +56,15 @@ public struct SymbolIndex: Sendable {
 
     public func declaringModules(of name: String) -> Set<String> {
         Set(declarations(of: name).compactMap(\.module))
+    }
+
+    /// The declaring modules including "none", so that a project with no
+    /// modules at all is still comparable. An app that is one Xcode target
+    /// with folders has no module boundaries to speak of, and dropping the
+    /// absent ones here would have quietly exempted exactly the codebases this
+    /// tool exists to help.
+    public func declaringScopes(of name: String) -> Set<String?> {
+        Set(declarations(of: name).map(\.module))
     }
 
     public static func build(

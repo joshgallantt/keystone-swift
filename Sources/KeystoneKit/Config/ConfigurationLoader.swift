@@ -25,7 +25,7 @@ public enum ConfigurationLoader {
     /// Walks upward, so the tool works from any directory inside a project —
     /// which matters because an agent's working directory is rarely the root.
     public static func discover(from directory: String) -> String? {
-        var current = URL(fileURLWithPath: directory).standardizedFileURL.path
+        var current = Paths.canonical(directory)
         while true {
             let candidate = Paths.join(current, fileName)
             if FileManager.default.fileExists(atPath: candidate) { return candidate }
