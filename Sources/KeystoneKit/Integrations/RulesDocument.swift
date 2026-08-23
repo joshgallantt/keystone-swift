@@ -86,6 +86,8 @@ public enum RulesDocument {
             out.append("")
         }
 
+        out.append(contentsOf: testing(configuration))
+
         out.append("## When a write is refused")
         out.append("")
         out.append(
@@ -100,10 +102,94 @@ public enum RulesDocument {
         return out.joined(separator: "\n")
     }
 
+    /// The testing structure, which an agent needs *before* it writes a test.
+    ///
+    /// Left out of this document at first, which was a mistake worth recording:
+    /// the layers were explained and the tiers were not, so an agent would
+    /// write a test in the wrong place and find out from a refusal. Every rule
+    /// this tool can enforce is cheaper as something the writer already knew.
+    static func testing(_ configuration: Configuration) -> [String] {
+        let tests = configuration.tests
+        guard !tests.isEmpty else { return [] }
+
+        var out: [String] = ["## Tests", ""]
+        out.append(
+            "Every test file belongs to a tier. A file directly inside a tier declares at least one "
+            + "test; anything that helps tests rather than being one — a driver, a double, a builder — "
+            + "goes in `\(tests.supportDirectory)/` beside the suite it serves."
+        )
+        out.append("")
+
+        for tier in tests.tiers {
+            out.append("### `\(tier.name)`")
+            out.append("")
+            out.append("- **Lives in** " + tier.paths.map { "`\($0)`" }.joined(separator: ", "))
+            if !tier.requiredFor.isEmpty {
+                out.append("- **Required of** " + tier.requiredFor.map(describe).joined(separator: "; "))
+            }
+            if tier.namesReadAsProse {
+                out.append("- **Named in sentences** — `@Test(\"Someone who … ends up with …\")`, "
+                    + "not an identifier")
+            }
+            if !tier.mayNotReference.isEmpty {
+                let roles = tier.mayNotReference.map { "`\($0)`" }.joined(separator: ", ")
+                out.append("- **May not name** any type declared in \(roles). Drive the feature through "
+                    + "this tier's own vocabulary in `\(tests.supportDirectory)/` instead.")
+            }
+            if let artefacts = tier.artifactDirectory {
+                out.append("- **Records to** `\(artefacts)/`, which must be committed — otherwise the "
+                    + "suite writes its reference every run and compares it against itself.")
+            }
+            if let reason = tier.reason {
+                out.append("")
+                out.append("> \(reason)")
+            }
+            out.append("")
+        }
+
+        out.append("### Doubles and data")
+        out.append("")
+        out.append(
+            "Test doubles are named for their kind — "
+            + tests.doublePrefixes.map { "`\($0)*`" }.joined(separator: ", ")
+            + " — because the kind tells the reader whether the test verifies state or behaviour. "
+            + "No two doubles in the repository may share a name."
+        )
+        out.append("")
+        out.append(
+            "Use builders rather than a shared file of test data: one small type per thing the tests "
+            + "need, where each test sets only the field it cares about. Data shared between tests is "
+            + "owned by none of them, so nobody can change it safely."
+        )
+        out.append("")
+
+        if tests.pyramid.count > 1 {
+            out.append("Keep the base wider than what sits on it: "
+                + tests.pyramid.map { "`\($0)`" }.joined(separator: " ≥ ") + ".")
+            out.append("")
+        }
+
+        return out
+    }
+
+    static func describe(_ requirement: TierRequirement) -> String {
+        let roles = requirement.roles.map { "`\($0)`" }.joined(separator: ", ")
+        guard let declaring = requirement.declaring else { return "every \(roles) package" }
+        // Only the first letter: lowercasing the whole phrase turned
+        // `*ViewModel` into `*viewmodel`, which is a different type name.
+        let phrase = describe(declaring)
+        let opened = phrase.prefix(1).lowercased() + phrase.dropFirst()
+        return "a \(roles) package declaring \(opened)"
+    }
+
     static func describe(_ match: ConventionMatch) -> String {
         var parts: [String] = []
         if let kinds = match.kinds {
-            parts.append("A " + kinds.map { "`\($0.rawValue)`" }.joined(separator: " or "))
+            let names = kinds.map { "`\($0.rawValue)`" }
+            let list = names.count > 1
+                ? names.dropLast().joined(separator: ", ") + " or " + names.last!
+                : names.joined()
+            parts.append("A \(list)")
         } else {
             parts.append("Anything")
         }
