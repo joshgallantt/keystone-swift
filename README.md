@@ -262,8 +262,12 @@ which has native Swift Testing support. `snapshots-are-committed` exists because
 snapshot suite whose references are not in the repository writes them on every run and
 compares them against itself: green in CI, and never once able to fail.
 
-`Tests/Fixtures/CleanApp/` in this repository is a complete worked example of the layout,
-and the test suite holds it to every rule.
+A project with **no packages at all** is treated as a single one, so a one-target app is
+held to its tiers rather than skipped — that being the codebase that needs them most.
+
+`Tests/Fixtures/` holds two complete worked examples — a multi-package workspace and a
+single-target app, deliberately about different things — and the suite holds both to
+every rule.
 
 ## Agents
 

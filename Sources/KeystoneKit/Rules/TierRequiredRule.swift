@@ -33,20 +33,16 @@ public struct TierRequiredRule: Rule {
                 guard let requirement = TierRequiredRule.requirement(tier, satisfiedBy: files) else { continue }
                 guard !files.contains(where: { tests.tier(forFile: $0.path)?.name == tier.name }) else { continue }
 
-                let manifest = Paths.join(package, "Package.swift")
-                let name = Paths.lastComponent(of: package)
-
                 violations.append(
                     Violation(
                         rule: identifier,
                         severity: defaultSeverity,
-                        file: context.allFiles.contains(manifest) ? manifest : package,
+                        file: context.anchor(for: package),
                         line: nil,
-                        summary: "`\(name)` has no `\(tier.name)` suite",
+                        summary: "\(context.label(for: package)) has no `\(tier.name)` suite",
                         fix: requirement.reason ?? tier.reason ?? TierRequiredRule.advice(
                             tier: tier,
-                            package: package,
-                            name: name
+                            package: package
                         ),
                         source: Sources.testBoundary
                     )
@@ -75,13 +71,30 @@ public struct TierRequiredRule: Rule {
         }
     }
 
-    static func advice(tier: TestTier, package: String, name: String) -> String {
-        let example = tier.paths.first.map { pattern in
-            Glob.fill(pattern, with: [name]).replacingOccurrences(of: "/**", with: "/")
-        }
-        let where_ = example.map { " at `\(Paths.join(package, $0))`" } ?? ""
-        return "Add a `\(tier.name)` suite\(where_). A package without one is not untested so much as "
-            + "unexamined in a particular way, and which way that is tends to be discovered during an "
+    static func advice(tier: TestTier, package: String) -> String {
+        let where_ = TierRequiredRule.example(tier: tier, package: package).map { " at `\($0)`" } ?? ""
+        return "Add a `\(tier.name)` suite\(where_). Code without one is not untested so much as "
+            + "unexamined in one particular way, and which way that is tends to be discovered during an "
             + "incident rather than during a review."
+    }
+
+    /// A real directory to create, built from the tier's own path pattern.
+    ///
+    /// `Glob.fill` cannot do this alone: the pattern starts `**/`, so filling
+    /// wildcards left to right puts the package's name where the leading path
+    /// goes and produces `App/Tests/*UnitTests/`. Trimming the anchoring
+    /// wildcards first leaves `Tests/*UnitTests`, which is the part that
+    /// actually describes the directory.
+    static func example(tier: TestTier, package: String) -> String? {
+        guard let pattern = tier.paths.first else { return nil }
+        let name = package.isEmpty ? "App" : Paths.lastComponent(of: package)
+
+        var segments = pattern.split(separator: "/").map(String.init)
+        while segments.first == "**" { segments.removeFirst() }
+        while segments.last == "**" { segments.removeLast() }
+        guard !segments.isEmpty else { return nil }
+
+        let filled = segments.map { $0.replacingOccurrences(of: "*", with: name) }
+        return Paths.join(package, filled.joined(separator: "/")) + "/"
     }
 }

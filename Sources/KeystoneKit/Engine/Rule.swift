@@ -62,20 +62,46 @@ public struct RuleContext: Sendable {
         self.scope = scope
     }
 
-    /// Every package directory in the project, longest first so that a nested
-    /// package wins over the one containing it.
+    /// Every package directory, longest first so that a nested package wins
+    /// over the one containing it.
+    ///
+    /// A project with no packages at all yields a single empty entry meaning
+    /// the repository itself. That is not a special case so much as the common
+    /// one: most iOS apps are a single Xcode target, and rules that grouped by
+    /// package would otherwise skip them entirely — exempting exactly the
+    /// codebases with the least structure from the rules about structure.
     public var packageDirectories: [String] {
-        Set(graph.orderedModules.compactMap(\.packageDirectory))
-            .filter { !$0.isEmpty }
-            .sorted { $0.count == $1.count ? $0 < $1 : $0.count > $1.count }
+        let declared = Set(graph.orderedModules.compactMap(\.packageDirectory)).filter { !$0.isEmpty }
+        guard !declared.isEmpty else { return [""] }
+        return declared.sorted { $0.count == $1.count ? $0 < $1 : $0.count > $1.count }
     }
 
     /// The package a path belongs to, found by containment rather than through
-    /// the module graph — a test target that has not been declared in the
-    /// manifest yet still lives inside a package, and a rule about missing
-    /// tiers is precisely the one that has to see it.
+    /// the module graph — a test target not yet declared in the manifest still
+    /// lives inside a package, and a rule about missing tiers is precisely the
+    /// one that has to see it.
     public func package(containing path: String) -> String? {
-        packageDirectories.first { path.hasPrefix($0 + "/") }
+        packageDirectories.first { contains(path, in: $0) }
+    }
+
+    /// Whether a path lies inside a package. The empty package is the
+    /// repository, and contains everything.
+    public func contains(_ path: String, in package: String) -> Bool {
+        package.isEmpty || path.hasPrefix(package + "/")
+    }
+
+    /// Where to report something that is true of a whole package: its manifest
+    /// if it has one, otherwise the file that declared the rule it is breaking.
+    public func anchor(for package: String) -> String {
+        let manifest = Paths.join(package, "Package.swift")
+        if allFiles.contains(manifest) { return manifest }
+        return package.isEmpty ? ConfigurationLoader.fileName : package
+    }
+
+    /// A package's name for a report. The repository itself has none, so it is
+    /// described rather than named.
+    public func label(for package: String) -> String {
+        package.isEmpty ? "This project" : "`\(Paths.lastComponent(of: package))`"
     }
 
     public func definition(for role: Role?) -> RoleDefinition? {

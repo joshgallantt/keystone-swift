@@ -34,18 +34,18 @@ public struct SnapshotArtifactRule: Rule {
 
             for package in packagesWithTier.sorted() {
                 let recorded = context.allFiles.contains { path in
-                    path.hasPrefix(package + "/") && path.split(separator: "/").contains(Substring(artefacts))
+                    context.contains(path, in: package)
+                        && path.split(separator: "/").contains(Substring(artefacts))
                 }
                 guard !recorded else { continue }
 
-                let manifest = Paths.join(package, "Package.swift")
                 violations.append(
                     Violation(
                         rule: identifier,
                         severity: defaultSeverity,
-                        file: context.allFiles.contains(manifest) ? manifest : package,
+                        file: context.anchor(for: package),
                         line: nil,
-                        summary: "`\(Paths.lastComponent(of: package))` has a `\(tier.name)` suite but no "
+                        summary: "\(context.label(for: package)) has a `\(tier.name)` suite but no "
                             + "committed `\(artefacts)`",
                         fix: "Record the snapshots and commit `\(artefacts)/`. Until they are in the "
                             + "repository the suite writes its reference on every run and compares it "

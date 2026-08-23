@@ -64,6 +64,10 @@ struct Fixture {
 
     /// Throws rather than trapping. A fixture that has drifted should fail one
     /// test, not take the whole run down with it.
+    func remove(_ relative: String) throws {
+        try FileManager.default.removeItem(atPath: Paths.absolute(relative, in: root))
+    }
+
     func replace(_ relative: String, _ old: String, with new: String) throws {
         let existing = try read(relative)
         guard existing.contains(old) else { throw AnchorMissing(file: relative, anchor: old) }

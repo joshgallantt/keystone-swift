@@ -125,49 +125,6 @@
         "presentation"
       ],
       "source" : "Robert C. Martin, Clean Architecture (2017), Ch. 23 — Presenters and Humble Objects."
-    },
-    {
-      "exemptRoles" : [
-        "tests",
-        "composition",
-        "library"
-      ],
-      "match" : {
-        "kinds" : [
-          "struct",
-          "class",
-          "actor"
-        ],
-        "nameSuffix" : "Client"
-      },
-      "name" : "clients-live-in-data",
-      "reason" : "A concrete client speaks a remote system's language. Keep it in data and give the domain a protocol phrased in the business's language instead.",
-      "requireRole" : [
-        "data"
-      ],
-      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
-    },
-    {
-      "exemptRoles" : [
-        "tests",
-        "composition",
-        "library"
-      ],
-      "match" : {
-        "kinds" : [
-          "struct",
-          "class",
-          "actor"
-        ],
-        "nameSuffix" : "Store"
-      },
-      "name" : "stores-live-in-data",
-      "reason" : "A store is persistence. If this type is holding view state rather than writing to disk, rename it — the suffix is telling readers something untrue.",
-      "requireRole" : [
-        "data"
-      ],
-      "severity" : "warning",
-      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
     }
   ],
   "exclude" : [
@@ -304,6 +261,9 @@
       "description" : "Test targets. Free to reach anywhere, since a test's job is to hold the rest to account.",
       "mayDependOn" : [
         "*"
+      ],
+      "paths" : [
+        "Tests/**"
       ],
       "sameRole" : "allow"
     }

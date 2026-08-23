@@ -37,14 +37,13 @@ public struct TestPyramidRule: Rule {
                 guard let baseCount = byTier[base], let aboveCount = byTier[above],
                       baseCount > 0, aboveCount > 0, baseCount < aboveCount else { continue }
 
-                let manifest = Paths.join(package, "Package.swift")
                 violations.append(
                     Violation(
                         rule: identifier,
                         severity: defaultSeverity,
-                        file: context.allFiles.contains(manifest) ? manifest : package,
+                        file: context.anchor(for: package),
                         line: nil,
-                        summary: "`\(Paths.lastComponent(of: package))` has \(aboveCount) `\(above)` tests "
+                        summary: "\(context.label(for: package)) has \(aboveCount) `\(above)` tests "
                             + "and only \(baseCount) `\(base)` tests",
                         fix: "Push the detail downward. Cases that differ only in a rule belong in the "
                             + "`\(base)` tier, where the failure names the rule; the `\(above)` tier should "
