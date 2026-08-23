@@ -1,5 +1,8 @@
 {
   "consistency" : {
+    "exempt" : [
+
+    ],
     "ignore" : [
       "**/*.resolved",
       "**/.DS_Store",
@@ -280,8 +283,8 @@
       "InMemory"
     ],
     "pyramid" : [
-      "unit",
-      "acceptance"
+      "acceptance",
+      "unit"
     ],
     "sharedFixtureNames" : [
       "Fixtures",

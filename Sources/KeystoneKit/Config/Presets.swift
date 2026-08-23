@@ -187,9 +187,17 @@ public enum Presets {
                 artifactDirectory: "__Snapshots__"
             )
         ],
-        // Snapshot counts track the number of views rather than the depth of
-        // the logic, so they are deliberately outside the pyramid.
-        pyramid: ["unit", "acceptance"]
+        // Acceptance first, deliberately: this architecture tests through the
+        // domain's own vocabulary, so the journeys are the foundation and the
+        // unit tier fills in underneath them. That is the inversion of the
+        // classic pyramid and it follows from the same decision that put a
+        // testing API in the acceptance suite — a test written against a
+        // journey survives the feature being rearranged, while a test written
+        // against a seam breaks with the seam.
+        //
+        // Snapshot counts track how many views there are rather than how deep
+        // the logic goes, so they stay outside the shape entirely.
+        pyramid: ["acceptance", "unit"]
     )
 
     /// Conventions worth having in nearly every Swift codebase, because they

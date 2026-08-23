@@ -179,7 +179,7 @@ the other combination.
 | `acceptance-vocabulary` | An acceptance test naming a type the data layer declared |
 | `test-names-read-as-prose` | A business-facing test named as an identifier |
 | `tier-required` | A package that owes a tier and has none |
-| `test-pyramid` | More journeys than unit tests *(warning)* |
+| `test-pyramid` | A tier far narrower than the one above it *(warning)* |
 | `no-shared-fixtures` | A file of shared test data *(warning)* |
 | `snapshots-are-committed` | A snapshot suite with nothing recorded *(warning)* |
 

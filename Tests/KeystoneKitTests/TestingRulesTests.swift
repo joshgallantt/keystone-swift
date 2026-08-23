@@ -227,25 +227,35 @@ struct TestingHygieneTests {
         #expect(try fixture.check().warningRules.contains("no-shared-fixtures"))
     }
 
-    @Test("more journeys than unit tests is reported")
-    func aninvertedPyramidIsReported() throws {
+    @Test("a tier far narrower than the one above it is reported")
+    func aLopsidedShapeIsReported() throws {
         let fixture = try Fixture.load("CleanApp")
         defer { fixture.destroy() }
 
-        try fixture.write("Component/Catalog/Tests/CatalogAcceptanceTests/MoreTests.swift", """
+        // Acceptance is the base by default: this architecture drives through
+        // the domain's own vocabulary, so a package with four times as many
+        // unit tests as journeys has its testing the wrong way up.
+        try fixture.write("Component/Catalog/Tests/CatalogUnitTests/MoreTests.swift", """
         import Testing
+        @testable import Catalog
 
-        @Test("Someone browsing twice sees the same thing both times")
-        func browsingTwiceIsStable() {}
-
-        @Test("Someone browsing an empty store is told so")
-        func browsingNothingSaysSo() {}
-
-        @Test("Someone browsing after a change sees the change")
-        func browsingAfterAChangeShowsIt() {}
+        @Test("identity survives a round trip") func identitySurvives() {}
+        @Test("names are kept verbatim") func namesKept() {}
+        @Test("an empty name is still a name") func emptyNames() {}
+        @Test("two different items differ") func differentItems() {}
+        @Test("the same item matches itself") func sameItem() {}
         """)
 
         #expect(try fixture.check().warningRules.contains("test-pyramid"))
+    }
+
+    @Test("a tier merely a little smaller is left alone")
+    func aBalancedShapeIsNotReported() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        // Two against three is not a shape, it is two numbers that differ.
+        #expect(!(try fixture.check().warningRules.contains("test-pyramid")))
     }
 
     @Test("a snapshot suite with nothing recorded has never been able to fail")

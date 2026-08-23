@@ -21,10 +21,10 @@
 - ~~**`testSupport` role.**~~ Done, along with `visibleTo` — the inverse of
   `mayDependOn`, needed because the layer most in need of stopping is the
   composition root, which may depend on everything by definition.
-- **Per-rule options.** Rules take a severity but no parameters. SwiftLint's
-  `line_length: warning: 120` shape is worth copying for things like
-  `test-pyramid`'s tolerance and `peer-consistency`'s threshold, which are
-  currently global.
+- **Per-rule options.** Rules take a severity but no parameters. `test-pyramid`
+  and `peer-consistency` now carry their own tolerances in `tests` and
+  `consistency`, but there is no general shape for it, so the next rule that
+  needs one will invent a third place to put it.
 
 ## Borrowed from SwiftLint, not yet done
 
@@ -74,8 +74,10 @@ Build succeeds; all fourteen affected test schemes pass. What is left:
   eight — and the same treatment would clear the rest: `StubCatalog`,
   `StubNavigation`, `SpySnackbarPresenter` and the others each belong to the
   component whose protocol they stand in for.
-- **6 inverted pyramids.** `StockAlert` is the worst at 27 acceptance tests to
-  13 unit tests.
+- **3 lopsided suites**, down from ten. The default shape is acceptance-first —
+  this architecture drives through the domain's own vocabulary, so the journeys
+  are the base and the unit tier fills in underneath. `Order`, `ProductActionsUI`
+  and `WishlistUI` are each better than two to one the other way.
 - **2 peer discrepancies**, both worth a look rather than an exemption:
   `Product` has no `Sources/Data/*Store.swift` and `SearchHistory` has no
   `Sources/Data/DTO/`, where six of the seven packages built the same way do.

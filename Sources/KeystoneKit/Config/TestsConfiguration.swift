@@ -20,21 +20,31 @@ public struct TestsConfiguration: Sendable, Codable {
     /// is data no test owns, and the first person to edit it for their case
     /// breaks the others.
     public var sharedFixtureNames: [String]
-    /// Tier names, base first. Each must hold no fewer tests than the one above.
+    /// Tier names, base first.
     public var pyramid: [String]
+    /// How much smaller the base may be than the tier above before it is worth
+    /// saying. Half, by default.
+    ///
+    /// Without this the rule fired on forty-nine against fifty-two, which is
+    /// not a shape at all — it is two numbers that happen to differ. A rule
+    /// that reports noise gets read as noise, and the one package that really
+    /// is two-to-one the wrong way goes past unnoticed with the rest.
+    public var pyramidRatio: Double
 
     public init(
         tiers: [TestTier] = [],
         supportDirectory: String = "Support",
         doublePrefixes: [String] = ["Stub", "Spy", "Mock", "Fake", "Dummy", "InMemory"],
         sharedFixtureNames: [String] = ["Fixtures", "Fixture", "TestData", "SharedFixture", "Constants"],
-        pyramid: [String] = []
+        pyramid: [String] = [],
+        pyramidRatio: Double = 0.5
     ) {
         self.tiers = tiers
         self.supportDirectory = supportDirectory
         self.doublePrefixes = doublePrefixes
         self.sharedFixtureNames = sharedFixtureNames
         self.pyramid = pyramid
+        self.pyramidRatio = pyramidRatio
     }
 
     public init(from decoder: Decoder) throws {
@@ -48,7 +58,9 @@ public struct TestsConfiguration: Sendable, Codable {
                 ?? defaults.doublePrefixes,
             sharedFixtureNames: try container.decodeIfPresent([String].self, forKey: .sharedFixtureNames)
                 ?? defaults.sharedFixtureNames,
-            pyramid: try container.decodeIfPresent([String].self, forKey: .pyramid) ?? []
+            pyramid: try container.decodeIfPresent([String].self, forKey: .pyramid) ?? [],
+            pyramidRatio: try container.decodeIfPresent(Double.self, forKey: .pyramidRatio)
+                ?? defaults.pyramidRatio
         )
     }
 
