@@ -88,6 +88,15 @@ public enum RulesDocument {
 
         out.append(contentsOf: testing(configuration))
 
+        if !configuration.consistency.notes.isEmpty {
+            out.append("## Differences already decided")
+            out.append("")
+            for note in configuration.consistency.notes {
+                out.append("- \(note)")
+            }
+            out.append("")
+        }
+
         out.append("## When a write is refused")
         out.append("")
         out.append(

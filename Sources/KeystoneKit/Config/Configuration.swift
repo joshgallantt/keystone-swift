@@ -282,17 +282,26 @@ public struct ConsistencySettings: Sendable, Codable {
     /// to a package and it appears to be missing everything, which is the
     /// opposite of what was meant.
     public var exempt: [String]
+    /// Why the exemptions above are there.
+    ///
+    /// Nothing reads these; `keystone-swift rules` prints them. An exemption
+    /// without a reason is indistinguishable from a rule somebody got tired of,
+    /// and the person who finds it in a year has no way to tell whether the
+    /// decision still holds.
+    public var notes: [String]
 
     public init(
         minimumPeers: Int = 3,
         threshold: Double = 0.75,
         ignore: [String] = ["**/*.resolved", "**/.DS_Store", "**/*.plist", "**/*.xcscheme"],
-        exempt: [String] = []
+        exempt: [String] = [],
+        notes: [String] = []
     ) {
         self.minimumPeers = minimumPeers
         self.threshold = threshold
         self.ignore = ignore
         self.exempt = exempt
+        self.notes = notes
     }
 
     public init(from decoder: Decoder) throws {
@@ -302,7 +311,8 @@ public struct ConsistencySettings: Sendable, Codable {
             minimumPeers: try container.decodeIfPresent(Int.self, forKey: .minimumPeers) ?? defaults.minimumPeers,
             threshold: try container.decodeIfPresent(Double.self, forKey: .threshold) ?? defaults.threshold,
             ignore: try container.decodeIfPresent([String].self, forKey: .ignore) ?? defaults.ignore,
-            exempt: try container.decodeIfPresent([String].self, forKey: .exempt) ?? []
+            exempt: try container.decodeIfPresent([String].self, forKey: .exempt) ?? [],
+            notes: try container.decodeIfPresent([String].self, forKey: .notes) ?? []
         )
     }
 }

@@ -18,7 +18,7 @@ public struct DeclarationPlacementRule: Rule {
         var violations: [Violation] = []
 
         for file in context.files {
-            guard let role = file.role else { continue }
+            guard let role = file.role, !role.isTestFacing else { continue }
 
             for convention in context.configuration.conventions {
                 guard !convention.exemptRoles.contains(role),

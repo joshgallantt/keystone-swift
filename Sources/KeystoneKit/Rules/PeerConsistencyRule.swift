@@ -35,7 +35,8 @@ public struct PeerConsistencyRule: Rule {
         var layersByPackage: [String: Set<String>] = [:]
         for module in context.graph.orderedModules {
             guard let package = module.packageDirectory, !package.isEmpty,
-                  let role = context.assignment.role(ofModule: module.name) else { continue }
+                  let role = context.assignment.role(ofModule: module.name),
+                  !role.isTestFacing else { continue }
             layersByPackage[package, default: []].insert(role.rawValue)
         }
 
@@ -78,7 +79,8 @@ public struct PeerConsistencyRule: Rule {
                 // Still a peer — its shape is evidence about the others — but
                 // absences already accounted for are not reported again.
                 for feature in PeerConsistencyRule.outermost(absent).sorted()
-                where !exempt.covers(package: package, feature: feature) {
+                where !exempt.covers(package: package, feature: feature)
+                    && !PeerConsistencyRule.governedByATier(feature, package: package, context: context) {
                     violations.append(
                         violation(
                             package: package,
@@ -157,6 +159,33 @@ public struct PeerConsistencyRule: Rule {
         return features.filter { feature in
             !directories.contains { ancestor in
                 ancestor != feature && feature.hasPrefix(ancestor)
+            }
+        }
+    }
+
+    /// Whether a stated rule already decides this, in which case observing it
+    /// is noise.
+    ///
+    /// `tier-required` says a feature package earns a unit tier by having a
+    /// view model. A package of nothing but views owes none — and this rule was
+    /// reporting it anyway, because nine of its neighbours happened to have
+    /// one. Two rules disagreeing in public about the same file is worse than
+    /// either of them being wrong, and the one that reasons from a rule should
+    /// win over the one that reasons from a majority.
+    /// Only the tier's own directory, not what is inside it. `tier-required`
+    /// answers whether a suite exists; it has nothing to say about whether that
+    /// suite keeps a `Support` folder, and suppressing the second question
+    /// along with the first would have hidden a real finding.
+    static func governedByATier(_ feature: String, package: String, context: RuleContext) -> Bool {
+        guard feature.hasSuffix("/") else { return false }
+        let depth = feature.split(separator: "/").count
+        let name = Paths.lastComponent(of: package)
+        let concrete = Paths.join(package, denormalise(feature, name: name), "probe.swift")
+
+        return context.configuration.tests.tiers.contains { tier in
+            tier.paths.contains { pattern in
+                let anchored = pattern.split(separator: "/").filter { $0 != "**" }.count
+                return anchored == depth && GlobSet([pattern]).matches(concrete)
             }
         }
     }

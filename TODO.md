@@ -62,28 +62,24 @@ SwiftLint's, which is better integrated.
 
 ## In the reference project
 
-**Zero errors.** Down from 26 errors and 59 warnings to **0 and 10**, with no
-manifest at all. Every UI package now has a snapshot suite with its references
-committed, and the doubles two suites share live in a `TestSupport` module
-rather than being written twice.
+**Clean.** `✓ 349 files, no violations`, from twenty-six errors and fifty-nine
+warnings. Every UI package has a snapshot suite with its references committed;
+doubles that two suites share live in a `TestSupport` module belonging to
+whichever package owns the protocol they stand in for.
 
-What is left, all warnings:
-
-- **7 duplicated doubles**, down from 13. The remaining ones are the same
-  problem `SessionTestSupport` solved, one component at a time: `StubCatalog`
-  and `StubBrowseCatalog` belong to Product, `StubNavigation` and
-  `SpySnackbarPresenter` to the packages whose protocols they stand in for.
-- **3 peer discrepancies.** `Product` has no `Sources/Data/*Store.swift` and
-  `SearchHistory` no `Sources/Data/DTO/`, where six of the seven packages built
-  the same way do.
+The one manifest in the repository holds three exemptions and the reasons for
+them — `Product` keeps no store because its catalogue is fetched rather than
+persisted, `SearchHistory` no DTO because it never crosses a wire, `Session`
+groups its stores in subfolders because it has eight data files where its
+neighbours have two to four. That is a decision record, which is what a manifest
+is for; the layout is still read from the repository.
 
 `ProductActionsUIAcceptanceTests` is flaky — it failed once and passed on three
 further runs, including one against the committed tree with every change
 stashed. Not caused by this work, but worth knowing about.
 
-Two views could not be snapshotted as they stand. `ProductCardRowView` renders
-three asynchronously loaded images behind spinners, and three spinners land on a
-different frame of the animation every run; the single-card case is stable, so
-the row is covered by two card states instead. That is a fact about the view
-rather than about the tool: a view whose appearance cannot be pinned cannot be
-regression-tested.
+`ProductCardRowView` could not be snapshotted: it renders three asynchronously
+loaded images behind spinners, and three spinners land on a different frame of
+the animation every run. The single-card case is stable, so the row is covered
+by two card states instead. That is a fact about the view rather than about the
+tool — a view whose appearance cannot be pinned cannot be regression-tested.
