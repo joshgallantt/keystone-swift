@@ -62,19 +62,24 @@ SwiftLint's, which is better integrated.
 
 ## In the reference project
 
-Left deliberately, as judgement calls rather than mechanical fixes:
+Down from 26 errors and 59 warnings to **12 and 19**, with no manifest at all.
+Build succeeds; all fourteen affected test schemes pass. What is left:
 
 - **12 missing snapshot suites.** Needs `swift-snapshot-testing` added to each
   UI package and a simulator run to record references. The images cannot be
   faked: a suite with nothing committed writes its reference every run and
   compares it against itself, so it is green and has never been able to fail.
-- **13 duplicated test doubles**, chiefly `StubGetSession` (×10) and
-  `StubObserveSession` (×8). Fixing them is the `testSupport` question above —
-  either accept the copies as the price of independent test targets, or give
-  the shared need a home.
-- **17 peer discrepancies.** Mixed. `OnboardingUI`, `SheetUI` and `SnackbarUI`
-  having no tests at all looks real; `Money` having no `Data/` or `DI/` looks
-  deliberate, since it is a pure value-object package, and wants
-  `consistency.ignore`.
+- **11 duplicated test doubles**, down from 13. `SessionTestSupport` took the
+  two worst — `StubGetSession` written ten times over, `StubObserveSession`
+  eight — and the same treatment would clear the rest: `StubCatalog`,
+  `StubNavigation`, `SpySnackbarPresenter` and the others each belong to the
+  component whose protocol they stand in for.
 - **6 inverted pyramids.** `StockAlert` is the worst at 27 acceptance tests to
   13 unit tests.
+- **2 peer discrepancies**, both worth a look rather than an exemption:
+  `Product` has no `Sources/Data/*Store.swift` and `SearchHistory` has no
+  `Sources/Data/DTO/`, where six of the seven packages built the same way do.
+
+`ProductActionsUIAcceptanceTests` is flaky — it failed once and passed on three
+further runs, including one against the committed tree with every change
+stashed. Not caused by this work, but worth knowing about.
