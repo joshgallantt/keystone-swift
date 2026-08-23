@@ -67,6 +67,9 @@ extension Commands {
 
         if arguments.has("json") {
             Output.print(JSONReport.render(shown, accepted: accepted.count))
+        } else if let format = arguments.value("reporter").flatMap(LineReport.Format.init(rawValue:)) {
+            let rendered = LineReport.render(shown, format: format)
+            if !rendered.isEmpty { Output.print(rendered) }
         } else {
             if let preamble = Commands.describe(target, selected: selected) {
                 Output.print("")

@@ -47,7 +47,7 @@ public struct Arguments: Sendable {
     /// Flags that take a value. Everything else is a switch, so an unknown
     /// flag can never silently swallow the argument after it.
     static let valued: Set<String> = [
-        "root", "config", "since", "file", "width", "commit", "branch", "at"
+        "root", "config", "since", "file", "width", "commit", "branch", "at", "reporter"
     ]
 
     public init(_ arguments: [String]) {
@@ -144,6 +144,8 @@ public enum Help {
 
     CHECK OPTIONS
       --json            Machine-readable output
+      --reporter xcode  One line per violation, as Xcode parses it inline
+      --reporter github GitHub Actions annotations, against the changed lines
       --include-accepted  Also report violations the baseline accepted
       --no-colour       Plain text even on a terminal
 

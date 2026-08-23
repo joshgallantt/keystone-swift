@@ -31,10 +31,10 @@
 
 ## Borrowed from SwiftLint, not yet done
 
-- **Reporters.** `--reporter github-actions-logging` would put violations inline
-  on a pull request for free; SARIF would feed GitHub code scanning. Currently
-  text and JSON only, so the CI workflow can only fail the build, not annotate
-  the diff.
+- ~~**Reporters.**~~ Done: `--reporter xcode` matches the diagnostic format
+  every Swift editor already parses, and `--reporter github` annotates the
+  changed lines of a pull request. SARIF, for GitHub code scanning, is still
+  open.
 - **`--strict`.** Treat warnings as errors, for projects past the migration.
 - **`--fix`.** Several rules know the destination already — `declaration-placement`
   computes it — so moving the file is mechanical. This is the biggest lever for
@@ -48,6 +48,14 @@
   prerequisite and shows `paths` in the configuration example. Layout is now
   derived from the repository; a manifest exists only to state a severity, a
   rule selection, or a layout too unusual to read.
+
+## Overlap with SwiftLint
+
+Measured, not assumed: of 256 SwiftLint rules and 29 here, exactly one is the
+same rule — `todo` and `no-todo`. `no_grouping_extension` is a partial subset of
+`no-extensions`, catching only the same-file case. There is nothing worth
+delegating, and `no-todo` is the one rule to consider dropping in favour of
+SwiftLint's, which is better integrated.
 
 ## Unverified
 

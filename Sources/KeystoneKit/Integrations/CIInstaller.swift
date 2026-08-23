@@ -77,10 +77,15 @@ public enum CIInstaller {
             run: swift build -c release --package-path .keystone-swift
 
           - name: Check the architecture
+            # `--reporter github` turns each violation into an annotation on the
+            # changed lines, which is where somebody reviewing the pull request
+            # is already looking. Without it the findings are in a log nobody
+            # opens, and the only signal is a red cross.
+            #
             # Violations already recorded in keystone-swift.baseline.json are
             # not reported, so this fails only on something new. Delete the
             # baseline once the project is clean and this becomes absolute.
-            run: .keystone-swift/.build/release/keystone-swift check --root .
+            run: .keystone-swift/.build/release/keystone-swift check --root . --reporter github
 
     """
 }
