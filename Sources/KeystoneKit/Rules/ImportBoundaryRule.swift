@@ -8,7 +8,7 @@ import Foundation
 /// agent's write lands rather than after CI has already gone red.
 public struct ImportBoundaryRule: Rule {
     public let identifier = "dependency-rule"
-    public var emittedIdentifiers: [String] { [identifier, "feature-isolation"] }
+    public var emittedIdentifiers: [String] { [identifier, "feature-isolation", "not-visible"] }
     public let defaultSeverity: Severity = .error
 
     public init() {}
@@ -57,6 +57,20 @@ public struct ImportBoundaryRule: Rule {
                                 advisor: advisor
                             ),
                             source: Sources.dependencyRule
+                        )
+                    )
+
+                case .notVisible:
+                    violations.append(
+                        Violation(
+                            rule: "not-visible",
+                            severity: defaultSeverity,
+                            file: file.path,
+                            line: reference.line,
+                            summary: "`\(imported.name)` is `\(importedRole)`, which `\(role)` may not see",
+                            fix: context.definition(for: importedRole)?.reason
+                                ?? BoundaryPhrasing.refusedVisibility(to: importedRole, from: role, context: context),
+                            source: Sources.testSupport
                         )
                     )
 

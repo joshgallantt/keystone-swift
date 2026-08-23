@@ -21,11 +21,15 @@ public struct Role: Hashable, Sendable, CustomStringConvertible {
     public static let composition = Role("composition")
     public static let library = Role("library")
     public static let tests = Role("tests")
+    /// Doubles, drivers and builders shared between test targets. A regular
+    /// module, because SwiftPM cannot share a test target across packages —
+    /// which is exactly why something has to stop it being linked into the app.
+    public static let testSupport = Role("testSupport")
 
     /// The order roles are printed in, so two runs never disagree about
     /// which violation comes first.
     public static let conventionalOrder: [Role] = [
-        .domain, .data, .presentation, .composition, .library, .tests
+        .domain, .data, .presentation, .composition, .library, .testSupport, .tests
     ]
 }
 

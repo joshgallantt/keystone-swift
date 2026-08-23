@@ -90,6 +90,24 @@ public enum Presets {
                 + "library — move it into the component that owns that concept."
         )
 
+        roles[Role.testSupport.rawValue] = RoleDefinition(
+            description: "Doubles, drivers and builders shared between test targets.",
+            paths: paths[.testSupport] ?? [],
+            mayDependOn: [Role.domain.rawValue, Role.library.rawValue],
+            // The point of the role. SwiftPM cannot share a test target across
+            // packages, so shared test code has to be an ordinary module — and
+            // an ordinary module can be linked by anything, including the app.
+            // Stating who may see it is what keeps test doubles out of the
+            // shipping binary.
+            visibleTo: [Role.tests.rawValue, Role.testSupport.rawValue],
+            sameRole: .allow,
+            allowsThirdParty: true,
+            reason: "This module exists to serve test targets and is not built to ship. It stands in for "
+                + "real behaviour, so anything depending on it outside a test is depending on a pretence. "
+                + "If production needs what is in here, it is not test support — move it into the layer "
+                + "that owns it."
+        )
+
         roles[Role.tests.rawValue] = RoleDefinition(
             description: "Test targets. Free to reach anywhere, since a test's job is to hold the rest to account.",
             paths: paths[.tests] ?? [],

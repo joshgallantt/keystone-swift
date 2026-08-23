@@ -106,6 +106,14 @@ public struct RoleDefinition: Sendable {
     /// Role names this role may reach. The single entry `*` means anything,
     /// which is what a composition root is *for*.
     public var mayDependOn: [String]
+    /// Roles permitted to depend on *this* one. Empty means anybody may.
+    ///
+    /// The inverse of `mayDependOn`, and needed because one direction cannot
+    /// express the other. Test support has to be reachable from tests and from
+    /// nowhere else, and a composition root — which by definition may depend on
+    /// anything — would otherwise be free to link test doubles into the
+    /// shipping app.
+    public var visibleTo: [String]
     public var sameRole: SameRolePolicy
     /// Framework categories from `FrameworkCatalog` this role refuses.
     public var deniedFrameworks: [String]
@@ -128,6 +136,7 @@ public struct RoleDefinition: Sendable {
         paths: [String] = [],
         targets: [String] = [],
         mayDependOn: [String] = [],
+        visibleTo: [String] = [],
         sameRole: SameRolePolicy = .allow,
         deniedFrameworks: [String] = [],
         allowsThirdParty: Bool = true,
@@ -139,6 +148,7 @@ public struct RoleDefinition: Sendable {
         self.paths = paths
         self.targets = targets
         self.mayDependOn = mayDependOn
+        self.visibleTo = visibleTo
         self.sameRole = sameRole
         self.deniedFrameworks = deniedFrameworks
         self.allowsThirdParty = allowsThirdParty
@@ -153,6 +163,10 @@ public struct RoleDefinition: Sendable {
 
     public func mayDepend(on role: Role) -> Bool {
         dependsOnAnything || mayDependOn.contains(role.rawValue)
+    }
+
+    public func isVisible(to role: Role) -> Bool {
+        visibleTo.isEmpty || visibleTo.contains(role.rawValue)
     }
 }
 

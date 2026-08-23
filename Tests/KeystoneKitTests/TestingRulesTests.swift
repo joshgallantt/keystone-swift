@@ -258,3 +258,88 @@ struct TestingHygieneTests {
         #expect(try fixture.check().warningRules.contains("snapshots-are-committed"))
     }
 }
+
+
+@Suite("Shared test support")
+struct TestSupportRoleTests {
+    /// SwiftPM cannot share a test target across packages, so shared doubles
+    /// have to live in an ordinary module — and an ordinary module can be
+    /// linked by anything, including the app. This is what stops that.
+    func fixture(consumer: String) throws -> Fixture {
+        let loaded = try Fixture.load("CleanApp")
+
+        try loaded.write("Component/Ledger/Package.swift", """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Ledger",
+            products: [
+                .library(name: "Ledger", targets: ["Ledger"]),
+                .library(name: "LedgerTestSupport", targets: ["LedgerTestSupport"]),
+                .library(name: "LedgerDI", targets: ["LedgerDI"])
+            ],
+            targets: [
+                .target(name: "Ledger", path: "Sources/Domain"),
+                .target(name: "LedgerTestSupport", dependencies: ["Ledger"], path: "Sources/TestSupport"),
+                .target(name: "LedgerDI", dependencies: ["Ledger", "\(consumer)"], path: "Sources/DI"),
+                .testTarget(name: "LedgerUnitTests", dependencies: ["Ledger", "\(consumer)"], path: "Tests/LedgerUnitTests")
+            ]
+        )
+        """)
+        try loaded.write("Component/Ledger/Sources/Domain/Ledger.swift", """
+        public protocol Entries: Sendable {
+            func all() -> [String]
+        }
+        """)
+        try loaded.write("Component/Ledger/Sources/TestSupport/Doubles.swift", """
+        import Ledger
+
+        public struct StubEntries: Entries {
+            public init() {}
+            public func all() -> [String] { [] }
+        }
+        """)
+        try loaded.write("Component/Ledger/Sources/DI/LedgerDI.swift", """
+        import Ledger
+
+        public struct LedgerDI {
+            public init() {}
+        }
+        """)
+        try loaded.write("Component/Ledger/Tests/LedgerUnitTests/LedgerTests.swift", """
+        import Testing
+
+        @Test("an empty ledger lists nothing")
+        func anEmptyLedgerListsNothing() {}
+        """)
+        return loaded
+    }
+
+    @Test("a test target may depend on shared support")
+    func testsMaySeeIt() throws {
+        let loaded = try fixture(consumer: "LedgerTestSupport")
+        defer { loaded.destroy() }
+
+        // The unit suite depends on it; the container does not.
+        try loaded.replace(
+            "Component/Ledger/Package.swift",
+            #".target(name: "LedgerDI", dependencies: ["Ledger", "LedgerTestSupport"]"#,
+            with: #".target(name: "LedgerDI", dependencies: ["Ledger"]"#
+        )
+
+        #expect(!(try loaded.check().erroringRules.contains("not-visible")))
+    }
+
+    @Test("production may not, even where it may depend on anything else")
+    func productionMayNotSeeIt() throws {
+        // A composition root may depend on every layer there is, which is
+        // precisely why the refusal has to come from the other direction.
+        let loaded = try fixture(consumer: "LedgerTestSupport")
+        defer { loaded.destroy() }
+
+        let violations = try loaded.check().errors.filter { $0.rule == "not-visible" }
+        #expect(!violations.isEmpty)
+        #expect(violations.contains { $0.summary.contains("LedgerTestSupport") })
+    }
+}

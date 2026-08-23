@@ -50,7 +50,7 @@ extension Configuration: Codable {
 
 extension RoleDefinition: Codable {
     private enum CodingKeys: String, CodingKey {
-        case description, paths, targets, mayDependOn, sameRole
+        case description, paths, targets, mayDependOn, visibleTo, sameRole
         case deniedFrameworks, allowsThirdParty, deniedSymbols, deniedNameSuffixes, reason
     }
 
@@ -61,6 +61,7 @@ extension RoleDefinition: Codable {
             paths: try container.decodeIfPresent([String].self, forKey: .paths) ?? [],
             targets: try container.decodeIfPresent([String].self, forKey: .targets) ?? [],
             mayDependOn: try container.decodeIfPresent([String].self, forKey: .mayDependOn) ?? [],
+            visibleTo: try container.decodeIfPresent([String].self, forKey: .visibleTo) ?? [],
             sameRole: try container.decodeIfPresent(SameRolePolicy.self, forKey: .sameRole) ?? .allow,
             deniedFrameworks: try container.decodeIfPresent([String].self, forKey: .deniedFrameworks) ?? [],
             allowsThirdParty: try container.decodeIfPresent(Bool.self, forKey: .allowsThirdParty) ?? true,
@@ -76,6 +77,7 @@ extension RoleDefinition: Codable {
         if !paths.isEmpty { try container.encode(paths, forKey: .paths) }
         if !targets.isEmpty { try container.encode(targets, forKey: .targets) }
         try container.encode(mayDependOn, forKey: .mayDependOn)
+        if !visibleTo.isEmpty { try container.encode(visibleTo, forKey: .visibleTo) }
         try container.encode(sameRole, forKey: .sameRole)
         if !deniedFrameworks.isEmpty { try container.encode(deniedFrameworks, forKey: .deniedFrameworks) }
         try container.encode(allowsThirdParty, forKey: .allowsThirdParty)

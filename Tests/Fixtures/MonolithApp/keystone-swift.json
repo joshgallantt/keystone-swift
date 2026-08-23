@@ -170,9 +170,6 @@
         "domain",
         "library"
       ],
-      "paths" : [
-        "App/Data/**"
-      ],
       "reason" : "The data layer answers to the domain and to nothing above it. If it needs something a screen has, the dependency is inverted — pass it in from the composition root instead.",
       "sameRole" : "denyAcrossPackages"
     },
@@ -213,9 +210,6 @@
       "mayDependOn" : [
 
       ],
-      "paths" : [
-        "App/Domain/**"
-      ],
       "reason" : "The domain states the business rules and declares what it needs as protocols. Anything that talks to a network, a disk, a framework or a screen is a detail: put the protocol here and the implementation in the layer that owns that detail, then let the composition root introduce them. Source code dependencies point inward, never out.",
       "sameRole" : "allow"
     },
@@ -250,20 +244,28 @@
         "domain",
         "library"
       ],
-      "paths" : [
-        "App/Presentation/**"
-      ],
       "reason" : "A screen reaches the domain and never storage. Take the use case protocol through the initialiser and let the composition root decide which concrete type satisfies it — that is what makes the screen testable without a network or a database.",
       "sameRole" : "allow"
+    },
+    "testSupport" : {
+      "allowsThirdParty" : true,
+      "description" : "Doubles, drivers and builders shared between test targets.",
+      "mayDependOn" : [
+        "domain",
+        "library"
+      ],
+      "reason" : "This module exists to serve test targets and is not built to ship. It stands in for real behaviour, so anything depending on it outside a test is depending on a pretence. If production needs what is in here, it is not test support — move it into the layer that owns it.",
+      "sameRole" : "allow",
+      "visibleTo" : [
+        "tests",
+        "testSupport"
+      ]
     },
     "tests" : {
       "allowsThirdParty" : true,
       "description" : "Test targets. Free to reach anywhere, since a test's job is to hold the rest to account.",
       "mayDependOn" : [
         "*"
-      ],
-      "paths" : [
-        "Tests/**"
       ],
       "sameRole" : "allow"
     }

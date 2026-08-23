@@ -19,6 +19,11 @@ public enum LayerVocabulary {
 
         for word in ["Tests", "Test", "Spec", "Specs", "Testing"] { table[word] = .tests }
 
+        // Checked before the test words below would ever see it, because these
+        // are production modules that exist to serve tests, not tests.
+        for word in ["TestSupport", "TestingSupport", "TestKit", "TestHelpers",
+                     "TestDoubles"] { table[word] = .testSupport }
+
         for word in ["DI", "Composition", "CompositionRoot", "Assembly", "Assemblies",
                      "Container", "Containers", "Injection", "Wiring", "Main", "App",
                      "Application", "Bootstrap"] { table[word] = .composition }
@@ -73,6 +78,7 @@ public enum LayerVocabulary {
     /// simply called `UI` is never read as a suffix.
     static func suffixRole(_ segment: String) -> Role? {
         guard segment.count > 2 else { return nil }
+        if segment.hasSuffix("TestSupport") || segment.hasSuffix("TestKit") { return .testSupport }
         if segment.hasSuffix("DI") { return .composition }
         if segment.hasSuffix("UI") { return .presentation }
         return nil

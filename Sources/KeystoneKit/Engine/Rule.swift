@@ -130,7 +130,11 @@ public struct RuleContext: Sendable {
             }
         }
 
-        return definition.mayDepend(on: to) ? .permitted : .roleRefused
+        guard definition.mayDepend(on: to) else { return .roleRefused }
+        // The other layer also gets a say. `composition` may depend on anything,
+        // which is exactly why something has to be able to refuse it.
+        guard configuration.definition(for: to)?.isVisible(to: from) ?? true else { return .notVisible }
+        return .permitted
     }
 }
 
@@ -140,6 +144,8 @@ public enum DependencyVerdict: Sendable, Equatable {
     case roleRefused
     /// Same layer, different package, and this layer keeps its siblings apart.
     case sameRoleRefused
+    /// The target layer refuses to be depended on by this one.
+    case notVisible
 }
 
 public protocol Rule: Sendable {
@@ -197,6 +203,8 @@ public enum Sources {
         "Freeman & Pryce, Growing Object-Oriented Software, Guided by Tests (2009), Ch. 22 — Constructing Complex Test Data."
     public static let acceptanceTests =
         "Robert C. Martin, The Clean Coder (2011), Ch. 7 — Acceptance Testing."
+    public static let testSupport =
+        "Gerard Meszaros, xUnit Test Patterns (2007) — Test Utility Method; Freeman & Pryce, GOOS (2009), Ch. 22."
     public static let compositionRoot =
         "Seemann & van Deursen, Dependency Injection: Principles, Practices, and Patterns (2019), Ch. 4 — Composition Root."
 }

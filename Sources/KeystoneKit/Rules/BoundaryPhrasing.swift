@@ -57,6 +57,26 @@ public enum BoundaryPhrasing {
         return lines.joined(separator: " ")
     }
 
+    /// Who a layer lets in, as prose.
+    public static func audience(_ definition: RoleDefinition?) -> String {
+        let roles = (definition?.visibleTo ?? []).sorted().map { "`\($0)`" }
+        switch roles.count {
+        case 0: return "nobody"
+        case 1: return roles[0]
+        default: return roles.dropLast().joined(separator: ", ") + " and " + roles.last!
+        }
+    }
+
+    /// Said when a layer refuses to be depended on, rather than the other way
+    /// round. The distinction matters: nothing is wrong with what this layer
+    /// reached for, only with its being the one reaching.
+    public static func refusedVisibility(to other: Role, from role: Role, context: RuleContext) -> String {
+        let definition = context.configuration.definition(for: other)
+        return "`\(other)` is visible to \(audience(definition)), and `\(role)` is not among them. "
+            + "This is not about what `\(role)` may reach — it is that `\(other)` exists for a narrower "
+            + "audience, and widening it would put that code somewhere it was never meant to ship."
+    }
+
     public static func packageOf(_ module: Module?) -> String? {
         module?.packageDirectory
     }

@@ -9,7 +9,9 @@ import Foundation
 /// stray imports legal.
 public struct TargetDependencyRule: Rule {
     public let identifier = "target-dependency-rule"
-    public var emittedIdentifiers: [String] { [identifier, "feature-isolation", "third-party-boundary"] }
+    public var emittedIdentifiers: [String] {
+        [identifier, "feature-isolation", "third-party-boundary", "not-visible"]
+    }
     public let defaultSeverity: Severity = .error
     public var needsWholeProject: Bool { true }
 
@@ -55,6 +57,24 @@ public struct TargetDependencyRule: Rule {
                                 advisor: advisor
                             ),
                             source: Sources.dependencyRule
+                        )
+                    )
+
+                case .notVisible:
+                    violations.append(
+                        Violation(
+                            rule: "not-visible",
+                            severity: defaultSeverity,
+                            file: module.manifestPath,
+                            line: module.manifestLine,
+                            summary: "`\(module.name)` (`\(role)`) declares a dependency on `\(dependencyName)`, "
+                                + "which `\(dependencyRole)` shows only to "
+                                + BoundaryPhrasing.audience(context.configuration.definition(for: dependencyRole)),
+                            fix: context.configuration.definition(for: dependencyRole)?.reason
+                                ?? BoundaryPhrasing.refusedVisibility(
+                                    to: dependencyRole, from: role, context: context
+                                ),
+                            source: Sources.testSupport
                         )
                     )
 
