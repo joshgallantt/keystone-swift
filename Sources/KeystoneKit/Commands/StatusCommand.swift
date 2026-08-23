@@ -26,7 +26,9 @@ extension Commands {
         lines.append("LAYERS")
         for (role, definition) in project.configuration.orderedRoles {
             let count = counts[role] ?? 0
-            let paths = definition.paths.isEmpty ? "no paths declared" : definition.paths.joined(separator: ", ")
+            let paths = definition.paths.isEmpty
+                ? "read from the repository"
+                : definition.paths.joined(separator: ", ")
             lines.append("  \(pad(role.rawValue, 14)) \(pad("\(count)", 6)) files   \(paths)")
         }
         if unclassified > 0 {

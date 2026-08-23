@@ -27,6 +27,10 @@ public struct TestDoubleRule: Rule {
 
     public init() {}
 
+    public func defaultSeverity(for identifier: String) -> Severity {
+        identifier == "doubles-are-uniquely-named" ? TestDoubleRule.duplicateSeverity : defaultSeverity
+    }
+
     public func evaluate(_ context: RuleContext) -> [Violation] {
         let tests = context.configuration.tests
         guard !tests.isEmpty else { return [] }

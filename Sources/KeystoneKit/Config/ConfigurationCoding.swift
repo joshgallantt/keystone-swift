@@ -8,7 +8,7 @@ import Foundation
 extension Configuration: Codable {
     private enum CodingKeys: String, CodingKey {
         case version, name, exclude, roles, conventions, extensionBoundaries
-        case frameworks, severities, disabledRules, consistency, tests
+        case frameworks, severities, disabledRules, enabledRules, consistency, tests
     }
 
     public init(from decoder: Decoder) throws {
@@ -23,6 +23,7 @@ extension Configuration: Codable {
             frameworks: try container.decodeIfPresent([String: [String]].self, forKey: .frameworks) ?? [:],
             severities: try container.decodeIfPresent([String: Severity].self, forKey: .severities) ?? [:],
             disabledRules: try container.decodeIfPresent([String].self, forKey: .disabledRules) ?? [],
+            enabledRules: try container.decodeIfPresent([String].self, forKey: .enabledRules) ?? [],
             consistency: try container.decodeIfPresent(ConsistencySettings.self, forKey: .consistency)
                 ?? ConsistencySettings(),
             tests: try container.decodeIfPresent(TestsConfiguration.self, forKey: .tests)
@@ -41,6 +42,7 @@ extension Configuration: Codable {
         if !frameworks.isEmpty { try container.encode(frameworks, forKey: .frameworks) }
         if !severities.isEmpty { try container.encode(severities, forKey: .severities) }
         if !disabledRules.isEmpty { try container.encode(disabledRules, forKey: .disabledRules) }
+        if !enabledRules.isEmpty { try container.encode(enabledRules, forKey: .enabledRules) }
         try container.encode(consistency, forKey: .consistency)
         if !tests.isEmpty { try container.encode(tests, forKey: .tests) }
     }

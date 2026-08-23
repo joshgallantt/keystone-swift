@@ -152,12 +152,18 @@ public protocol Rule: Sendable {
     var defaultSeverity: Severity { get }
     /// True when the rule needs to see every file to be right.
     var needsWholeProject: Bool { get }
+    /// The severity of one of this rule's identifiers before the project has
+    /// its say. A rule that reports two different kinds of failure may hold
+    /// them to two different standards, and anything listing the rules has to
+    /// be able to ask rather than assume.
+    func defaultSeverity(for identifier: String) -> Severity
     func evaluate(_ context: RuleContext) -> [Violation]
 }
 
 extension Rule {
     public var emittedIdentifiers: [String] { [identifier] }
     public var needsWholeProject: Bool { false }
+    public func defaultSeverity(for identifier: String) -> Severity { defaultSeverity }
 }
 
 /// Short attributions, printed with the violation so a reader can go and

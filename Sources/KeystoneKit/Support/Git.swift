@@ -97,6 +97,15 @@ public enum Git {
         Shell.run("git", ["rev-parse", "--git-dir"], in: root).status == 0
     }
 
+    /// The top of the working tree, which is the project when no manifest
+    /// names one.
+    public static func repositoryRoot(_ from: String) -> String? {
+        let result = Shell.run("git", ["rev-parse", "--show-toplevel"], in: from)
+        guard result.status == 0 else { return nil }
+        let value = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : Paths.canonical(value)
+    }
+
     public static func resolve(_ ref: String, root: String) -> String? {
         let result = Shell.run("git", ["rev-parse", "--verify", "--quiet", ref + "^{commit}"], in: root)
         guard result.status == 0 else { return nil }

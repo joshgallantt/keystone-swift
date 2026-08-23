@@ -126,6 +126,7 @@ public enum Help {
       status            Show which layers exist, what is unclassified, and the debt
       baseline          Record today's violations as accepted, so only new ones fail
       rules             Print the architecture as a document for an agent to read
+      rules --list      Show every rule, its severity, and whether it runs
       hook              Answer an agent hook; reads the payload on stdin
       install <target>  Wire into claude, kiro or ci
       uninstall <target>  Take it back out again

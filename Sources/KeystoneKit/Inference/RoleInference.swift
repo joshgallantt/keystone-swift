@@ -30,112 +30,74 @@ public struct RoleInference: Sendable {
         self.fileSystem = fileSystem
     }
 
-    public func infer(root: String, exclude: [String] = Configuration.defaultExclusions) -> InferenceReport {
+    /// Reads a repository and reports what the checker will make of it.
+    ///
+    /// This runs the same assignment `check` runs, rather than a second,
+    /// friendlier one. An `init` that explained the project differently from
+    /// the way it is actually judged would be worse than no `init` at all.
+    public func infer(
+        root: String,
+        exclude: [String] = Configuration.defaultExclusions,
+        pinLayout: Bool = false
+    ) -> InferenceReport {
         let root = Paths.canonical(root)
-        let base = Configuration(exclude: exclude)
-        let scanned = ProjectScanner(fileSystem: fileSystem).scan(root: root, configuration: base)
-        let catalog = base.catalog
+        let base = Presets.cleanArchitecture(paths: [:])
+        var configuration = base
+        configuration.exclude = exclude
 
-        var importsByModule: [String: Set<String>] = [:]
-        var externalByModule: [String: Bool] = [:]
-        var filesByModule: [String: [String]] = [:]
+        let scanned = ProjectScanner(fileSystem: fileSystem).scan(root: root, configuration: configuration)
+        let assignment = RoleAssignment(
+            configuration: configuration,
+            graph: scanned.graph,
+            swiftFiles: scanned.swiftFiles
+        )
 
-        for path in scanned.swiftFiles {
-            guard let module = scanned.graph.module(owning: path) else { continue }
-            filesByModule[module.name, default: []].append(path)
-
-            guard let content = fileSystem.contents(of: Paths.absolute(path, in: root)) else { continue }
-            let facts = analyzer.analyze(path: path, content: content)
-            let external = scanned.graph.externalEdges[module.name] ?? []
-            for reference in facts.imports {
-                if let category = catalog.category(of: reference.module) {
-                    importsByModule[module.name, default: []].insert(category)
-                }
-                if external.contains(reference.module) {
-                    externalByModule[module.name] = true
-                }
-            }
-        }
-
-        var moduleRoles: [String: Role] = [:]
-        var evidence: [String: String] = [:]
-
-        for module in scanned.graph.orderedModules {
-            if let (role, why) = firstPass(
-                module: module,
-                categories: importsByModule[module.name] ?? [],
-                hasExternal: externalByModule[module.name] ?? false
-            ) {
-                moduleRoles[module.name] = role
-                evidence[module.name] = why
-            }
-        }
-
-        for module in scanned.graph.orderedModules where moduleRoles[module.name] == nil {
-            let (role, why) = secondPass(module: module, graph: scanned.graph, known: moduleRoles)
-            if let role { moduleRoles[module.name] = role }
-            evidence[module.name] = why
-        }
-
-        // Files, which is what the configuration actually addresses.
         var directoriesByRole: [Role: Set<String>] = [:]
         var fileCounts: [Role: Int] = [:]
-        var unclassified: [String] = []
-
-        for path in scanned.swiftFiles {
-            let directory = Paths.directory(of: path)
-            let module = scanned.graph.module(owning: path)
-
-            var role: Role?
-            if module?.kind.isTest == true {
-                role = .tests
-            } else if let fromPath = LayerVocabulary.role(forDirectory: directory) {
-                role = fromPath
-            } else if let moduleName = module?.name {
-                role = moduleRoles[moduleName]
-            }
-
-            guard let role else {
-                unclassified.append(path)
-                continue
-            }
-            directoriesByRole[role, default: []].insert(directory)
+        for (file, role) in assignment.fileRoles {
+            directoriesByRole[role, default: []].insert(Paths.directory(of: file))
             fileCounts[role, default: 0] += 1
         }
 
-        let packageDirectories = Set(scanned.graph.orderedModules.compactMap(\.packageDirectory))
-
+        // Paths are written only when asked for. Freezing this repository's
+        // directories into a manifest is what made the file project-specific,
+        // and the derivation runs every time anyway.
         var patterns: [Role: [String]] = [:]
-        for role in Role.conventionalOrder {
-            let own = Array(directoriesByRole[role] ?? [])
-            guard !own.isEmpty else { continue }
-            let others = directoriesByRole
-                .filter { $0.key != role }
-                .flatMap { Array($0.value) }
-            patterns[role] = PathGeneralizer.generalize(own, avoiding: others, packages: packageDirectories)
+        if pinLayout {
+            let packages = Set(scanned.graph.orderedModules.compactMap(\.packageDirectory))
+            for role in Role.conventionalOrder {
+                let own = Array(directoriesByRole[role] ?? [])
+                guard !own.isEmpty else { continue }
+                let others = directoriesByRole.filter { $0.key != role }.flatMap { Array($0.value) }
+                patterns[role] = PathGeneralizer.generalize(own, avoiding: others, packages: packages)
+            }
         }
 
-        var configuration = Presets.cleanArchitecture(paths: patterns)
-        configuration.name = Paths.lastComponent(of: root)
-        configuration.exclude = exclude
+        var result = Presets.cleanArchitecture(paths: patterns)
+        result.name = Paths.lastComponent(of: root)
+        result.exclude = exclude
 
-        let findings = scanned.graph.orderedModules.map { module in
-            ModuleFinding(
-                name: module.name,
-                role: moduleRoles[module.name],
-                evidence: evidence[module.name] ?? "no evidence",
-                fileCount: filesByModule[module.name]?.count ?? 0
-            )
+        var filesByModule: [String: Int] = [:]
+        for file in scanned.swiftFiles {
+            guard let module = scanned.graph.module(owning: file) else { continue }
+            filesByModule[module.name, default: 0] += 1
         }
 
         return InferenceReport(
-            configuration: configuration,
-            modules: findings,
+            configuration: result,
+            modules: scanned.graph.orderedModules.map { module in
+                ModuleFinding(
+                    name: module.name,
+                    role: assignment.role(ofModule: module.name),
+                    evidence: assignment.evidence[module.name] ?? "nothing placed it",
+                    fileCount: filesByModule[module.name] ?? 0
+                )
+            },
             directories: Role.conventionalOrder.compactMap { role in
                 patterns[role].map { (role, $0) }
             },
             fileCounts: fileCounts,
-            unclassifiedFiles: unclassified.sorted()
+            unclassifiedFiles: assignment.unclassifiedFiles
         )
     }
 

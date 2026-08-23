@@ -16,6 +16,11 @@ public struct Configuration: Sendable {
     public var frameworks: [String: [String]]
     public var severities: [String: Severity]
     public var disabledRules: [String]
+    /// When non-empty, the only rules that run. SwiftLint's `only_rules`, and
+    /// for the same reason: a team adopting this on a large codebase wants to
+    /// turn on three rules and mean them, not turn off twenty-six and argue
+    /// about each. Empty means every rule, which is what a new project wants.
+    public var enabledRules: [String]
     public var consistency: ConsistencySettings
     public var tests: TestsConfiguration
 
@@ -29,6 +34,7 @@ public struct Configuration: Sendable {
         frameworks: [String: [String]] = [:],
         severities: [String: Severity] = [:],
         disabledRules: [String] = [],
+        enabledRules: [String] = [],
         consistency: ConsistencySettings = ConsistencySettings(),
         tests: TestsConfiguration = TestsConfiguration()
     ) {
@@ -41,6 +47,7 @@ public struct Configuration: Sendable {
         self.frameworks = frameworks
         self.severities = severities
         self.disabledRules = disabledRules
+        self.enabledRules = enabledRules
         self.consistency = consistency
         self.tests = tests
     }
@@ -80,7 +87,8 @@ public struct Configuration: Sendable {
     }
 
     public func isEnabled(_ rule: String) -> Bool {
-        !disabledRules.contains(rule)
+        guard !disabledRules.contains(rule) else { return false }
+        return enabledRules.isEmpty || enabledRules.contains(rule)
     }
 }
 

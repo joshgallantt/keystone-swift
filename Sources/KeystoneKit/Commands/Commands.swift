@@ -10,8 +10,12 @@ public enum Commands {
     static func resolveProject(_ arguments: Arguments) -> (root: String, configuration: Configuration)? {
         let explicit = arguments.value("config")
         guard let path = explicit ?? ConfigurationLoader.discover(from: arguments.root) else {
-            Output.error(ConfigurationError.missing(searchedFrom: arguments.root).description)
-            return nil
+            // No manifest is the ordinary case, not an error. Layers are read
+            // from the repository itself, and a manifest exists only to state
+            // what evidence cannot: a severity, a rule switched off, a layout
+            // too unusual to read.
+            let root = Git.repositoryRoot(arguments.root) ?? arguments.root
+            return (root, Presets.cleanArchitecture(paths: [:]))
         }
 
         do {

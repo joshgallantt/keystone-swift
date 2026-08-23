@@ -24,7 +24,17 @@ public enum PathGeneralizer {
         guard !own.isEmpty else { return [] }
         let foreign = Set(others)
 
-        let widened = removeDescendants(Array(Set(own.map { widen($0, avoiding: foreign) })).sorted())
+        // Widen only where it buys something. A directory that already looks
+        // like its siblings — same depth, same final segment — is left alone,
+        // because widening it would take it out of the group it belongs to.
+        // `Component/Money/Sources/Domain` has no `Data` or `DI` beside it, so
+        // widening happily swallowed the whole of `Sources` and produced a rule
+        // naming Money in particular, when the pattern the other nine already
+        // matched was right there.
+        let resolved = own.map { directory -> String in
+            hasSibling(directory, in: own) ? directory : widen(directory, avoiding: foreign)
+        }
+        let widened = removeDescendants(Array(Set(resolved)).sorted())
 
         var patterns: Set<String> = []
         for group in groupedByDepth(widened) {
@@ -42,6 +52,17 @@ public enum PathGeneralizer {
             if !taken { return candidate }
         }
         return directory
+    }
+
+    /// Whether another directory sits at the same depth under the same final
+    /// name, which is what makes two paths one rule rather than two.
+    static func hasSibling(_ directory: String, in all: [String]) -> Bool {
+        let segments = directory.split(separator: "/")
+        return all.contains { other in
+            guard other != directory else { return false }
+            let theirs = other.split(separator: "/")
+            return theirs.count == segments.count && theirs.last == segments.last
+        }
     }
 
     static func removeDescendants(_ directories: [String]) -> [String] {
@@ -73,9 +94,15 @@ public enum PathGeneralizer {
             return [whole]
         }
 
+        // Cluster by the last two characters of the final segment. Names that
+        // end alike usually are alike, and this is what lets the `*UIHost`
+        // directories merge with each other while `Navigation` stays on its
+        // own — splitting straight to one group per name would have made the
+        // shared ending invisible.
         var byLastSegment: [String: [String]] = [:]
         for directory in group {
-            byLastSegment[String(directory.split(separator: "/").last ?? ""), default: []].append(directory)
+            let last = String(directory.split(separator: "/").last ?? "")
+            byLastSegment[String(last.suffix(2)), default: []].append(directory)
         }
 
         var results: [String] = []
@@ -109,18 +136,28 @@ public enum PathGeneralizer {
         var segments: [String] = []
         for index in first.indices {
             let values = Set(split.map { $0[index] })
-            if values.count > 1 {
-                segments.append("*")
-                continue
-            }
+
             // A segment that names a package is a variable even when there is
             // only one of them today. Without this, a project with a single
             // component gets `Component/Catalog/Sources/Domain/**`, and the
-            // second component silently falls outside the architecture. The
-            // `unclassified-files` rule would eventually say so, but the
-            // configuration should have been right in the first place.
-            let prefix = first.prefix(index + 1).joined(separator: "/")
-            segments.append(packages.contains(prefix) ? "*" : first[index])
+            // second component silently falls outside the architecture.
+            let isPackage = split.contains { packages.contains($0.prefix(index + 1).joined(separator: "/")) }
+            if isPackage {
+                segments.append("*")
+                continue
+            }
+
+            if values.count == 1 {
+                segments.append(first[index])
+                continue
+            }
+
+            // Differing segments usually share the part that means something:
+            // `AuthUIHost`, `SheetUIHost` and `SnackbarUIHost` are one idea
+            // spelled three ways. Emitting `*UIHost` says that; enumerating
+            // them writes this project's module names into a rule, which is
+            // the roster problem the whole design exists to avoid.
+            segments.append(affix(values) ?? "*")
         }
 
         let base = segments.joined(separator: "/")
@@ -131,6 +168,39 @@ public enum PathGeneralizer {
             others.contains { $0.hasPrefix(directory + "/") }
         }
         return base + (nested ? "/*" : "/**")
+    }
+
+    /// A wildcard that keeps the part these names have in common.
+    ///
+    /// Accepted only when the shared part is long enough to mean something —
+    /// three characters, or a whole name in its own right, which is what makes
+    /// `*UI` legitimate across `UI` and `AuthUI` while `*ns` across `Screens`
+    /// and `Tokens` is rejected as a coincidence of spelling.
+    static func affix(_ values: Set<String>) -> String? {
+        let names = values.sorted()
+        guard names.count > 1, let shortest = names.map(\.count).min(), shortest > 0 else { return nil }
+
+        var suffix = ""
+        for length in 1...shortest {
+            let candidate = String(names[0].suffix(length))
+            guard names.allSatisfy({ $0.hasSuffix(candidate) }) else { break }
+            suffix = candidate
+        }
+        if suffix.count >= 3 || (suffix.count >= 2 && names.contains(suffix)) {
+            return "*" + suffix
+        }
+
+        var prefix = ""
+        for length in 1...shortest {
+            let candidate = String(names[0].prefix(length))
+            guard names.allSatisfy({ $0.hasPrefix(candidate) }) else { break }
+            prefix = candidate
+        }
+        if prefix.count >= 3 || (prefix.count >= 2 && names.contains(prefix)) {
+            return prefix + "*"
+        }
+
+        return nil
     }
 
     /// Whether a pattern would claim a file belonging to another layer.
