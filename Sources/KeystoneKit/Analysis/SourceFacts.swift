@@ -44,6 +44,11 @@ public struct Declaration: Sendable, Hashable {
     public var inheritedTypes: [String]
     public var isTopLevel: Bool
     public var isStatic: Bool
+    /// True when the declaration carries a `where` clause. On an extension this
+    /// matters: a member available only under a constraint cannot be written in
+    /// the type's body at all, so the extension is the language's requirement
+    /// rather than the author's preference.
+    public var isConstrained: Bool
 
     public init(
         name: String,
@@ -52,7 +57,8 @@ public struct Declaration: Sendable, Hashable {
         accessLevel: AccessLevel = .internal,
         inheritedTypes: [String] = [],
         isTopLevel: Bool = true,
-        isStatic: Bool = false
+        isStatic: Bool = false,
+        isConstrained: Bool = false
     ) {
         self.name = name
         self.kind = kind
@@ -61,6 +67,7 @@ public struct Declaration: Sendable, Hashable {
         self.inheritedTypes = inheritedTypes
         self.isTopLevel = isTopLevel
         self.isStatic = isStatic
+        self.isConstrained = isConstrained
     }
 
     /// Kinds that declare a type a boundary can be drawn around. A function or
@@ -80,6 +87,32 @@ public struct TypeReference: Sendable, Hashable {
     public init(name: String, line: Int) {
         self.name = name
         self.line = line
+    }
+}
+
+/// A test, as declared. Both styles are recognised: swift-testing's `@Test`
+/// with its display name, and XCTest's `func test…` naming convention.
+///
+/// The display name is what makes a business-facing tier checkable at all — a
+/// tier whose tests are named `func testBagFlow2()` is not readable by anyone
+/// who did not write it, and no amount of structure fixes that.
+public struct TestDeclaration: Sendable, Hashable {
+    public enum Style: String, Sendable, Codable {
+        case swiftTesting
+        case xctest
+    }
+
+    public var functionName: String
+    /// The sentence given to `@Test("…")`, when there is one.
+    public var displayName: String?
+    public var line: Int
+    public var style: Style
+
+    public init(functionName: String, displayName: String? = nil, line: Int, style: Style) {
+        self.functionName = functionName
+        self.displayName = displayName
+        self.line = line
+        self.style = style
     }
 }
 
@@ -106,6 +139,7 @@ public struct SourceFacts: Sendable {
     public var extensions: [Declaration]
     public var typeReferences: [TypeReference]
     public var comments: [CommentMatch]
+    public var tests: [TestDeclaration]
 
     public init(
         path: String,
@@ -113,7 +147,8 @@ public struct SourceFacts: Sendable {
         declarations: [Declaration] = [],
         extensions: [Declaration] = [],
         typeReferences: [TypeReference] = [],
-        comments: [CommentMatch] = []
+        comments: [CommentMatch] = [],
+        tests: [TestDeclaration] = []
     ) {
         self.path = path
         self.imports = imports
@@ -121,5 +156,6 @@ public struct SourceFacts: Sendable {
         self.extensions = extensions
         self.typeReferences = typeReferences
         self.comments = comments
+        self.tests = tests
     }
 }

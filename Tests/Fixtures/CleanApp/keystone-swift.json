@@ -1,4 +1,14 @@
 {
+  "consistency" : {
+    "ignore" : [
+      "**/*.resolved",
+      "**/.DS_Store",
+      "**/*.plist",
+      "**/*.xcscheme"
+    ],
+    "minimumPeers" : 3,
+    "threshold" : 0.75
+  },
   "conventions" : [
     {
       "exemptRoles" : [
@@ -115,49 +125,6 @@
         "presentation"
       ],
       "source" : "Robert C. Martin, Clean Architecture (2017), Ch. 23 — Presenters and Humble Objects."
-    },
-    {
-      "exemptRoles" : [
-        "tests",
-        "composition",
-        "library"
-      ],
-      "match" : {
-        "kinds" : [
-          "struct",
-          "class",
-          "actor"
-        ],
-        "nameSuffix" : "Client"
-      },
-      "name" : "clients-live-in-data",
-      "reason" : "A concrete client speaks a remote system's language. Keep it in data and give the domain a protocol phrased in the business's language instead.",
-      "requireRole" : [
-        "data"
-      ],
-      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
-    },
-    {
-      "exemptRoles" : [
-        "tests",
-        "composition",
-        "library"
-      ],
-      "match" : {
-        "kinds" : [
-          "struct",
-          "class",
-          "actor"
-        ],
-        "nameSuffix" : "Store"
-      },
-      "name" : "stores-live-in-data",
-      "reason" : "A store is persistence. If this type is holding view state rather than writing to disk, rename it — the suffix is telling readers something untrue.",
-      "requireRole" : [
-        "data"
-      ],
-      "severity" : "warning",
-      "source" : "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 13 — Repository."
     }
   ],
   "exclude" : [
@@ -221,6 +188,18 @@
         "crypto",
         "media",
         "system"
+      ],
+      "deniedNameSuffixes" : [
+        "Client",
+        "API",
+        "Endpoint",
+        "Gateway",
+        "DAO",
+        "Database",
+        "Cache",
+        "Socket",
+        "Serializer",
+        "Codec"
       ],
       "deniedSymbols" : [
         "URLSession",
@@ -290,10 +269,109 @@
         "*"
       ],
       "paths" : [
-        "Component/*/Tests/**"
+        "*/*/Tests/**"
       ],
       "sameRole" : "allow"
     }
+  },
+  "tests" : {
+    "doublePrefixes" : [
+      "Stub",
+      "Spy",
+      "Mock",
+      "Fake",
+      "Dummy",
+      "InMemory"
+    ],
+    "pyramid" : [
+      "unit",
+      "acceptance"
+    ],
+    "sharedFixtureNames" : [
+      "Fixtures",
+      "Fixture",
+      "TestData",
+      "SharedFixture",
+      "Constants"
+    ],
+    "supportDirectory" : "Support",
+    "tiers" : [
+      {
+        "mayNotReference" : [
+          "data"
+        ],
+        "name" : "acceptance",
+        "namesReadAsProse" : true,
+        "paths" : [
+          "**/Tests/*AcceptanceTests/**"
+        ],
+        "reason" : "Drive the feature through this tier's own driver — the role objects in Support/ — so the feature can be rearranged underneath the suite without touching it. The driver may name concrete types; the tests may not.",
+        "requiredFor" : [
+          {
+            "reason" : "Every component states its business rules as a journey somebody takes, readable by a person who does not know the code.",
+            "roles" : [
+              "domain"
+            ]
+          }
+        ]
+      },
+      {
+        "mayNotReference" : [
+
+        ],
+        "name" : "unit",
+        "namesReadAsProse" : false,
+        "paths" : [
+          "**/Tests/*UnitTests/**"
+        ],
+        "requiredFor" : [
+          {
+            "roles" : [
+              "domain"
+            ]
+          },
+          {
+            "declaring" : {
+              "kinds" : [
+                "struct",
+                "class",
+                "actor"
+              ],
+              "nameSuffix" : "ViewModel"
+            },
+            "reason" : "A feature package earns a unit tier by having a view model. One with nothing but views has no unit for a unit test to name.",
+            "roles" : [
+              "presentation"
+            ]
+          }
+        ]
+      },
+      {
+        "artifactDirectory" : "__Snapshots__",
+        "mayNotReference" : [
+
+        ],
+        "name" : "snapshot",
+        "namesReadAsProse" : false,
+        "paths" : [
+          "**/Tests/*SnapshotTests/**"
+        ],
+        "requiredFor" : [
+          {
+            "declaring" : {
+              "kinds" : [
+                "struct"
+              ],
+              "nameSuffix" : "View"
+            },
+            "reason" : "A view is the one thing neither other tier can check. Apple ships no snapshot testing, so this means pointfreeco/swift-snapshot-testing, which has native Swift Testing support.",
+            "roles" : [
+              "presentation"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "version" : 1
 }

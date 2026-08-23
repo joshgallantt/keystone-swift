@@ -16,6 +16,8 @@ public struct Configuration: Sendable {
     public var frameworks: [String: [String]]
     public var severities: [String: Severity]
     public var disabledRules: [String]
+    public var consistency: ConsistencySettings
+    public var tests: TestsConfiguration
 
     public init(
         version: Int = 1,
@@ -26,7 +28,9 @@ public struct Configuration: Sendable {
         extensionBoundaries: [ExtensionBoundary] = [],
         frameworks: [String: [String]] = [:],
         severities: [String: Severity] = [:],
-        disabledRules: [String] = []
+        disabledRules: [String] = [],
+        consistency: ConsistencySettings = ConsistencySettings(),
+        tests: TestsConfiguration = TestsConfiguration()
     ) {
         self.version = version
         self.name = name
@@ -37,6 +41,8 @@ public struct Configuration: Sendable {
         self.frameworks = frameworks
         self.severities = severities
         self.disabledRules = disabledRules
+        self.consistency = consistency
+        self.tests = tests
     }
 
     /// Build output, dependency checkouts and vendored code. A project can
@@ -101,6 +107,10 @@ public struct RoleDefinition: Sendable {
     /// smuggle capability inside an allowed umbrella, `URLSession` inside
     /// `Foundation` being the standing example.
     public var deniedSymbols: [String]
+    /// Name endings that belong to another layer's vocabulary. A domain that
+    /// declares a `*Client` has borrowed a word from the layer that owns the
+    /// wire, and the borrowing is usually how the responsibility follows.
+    public var deniedNameSuffixes: [String]
     /// Printed when this role's boundary is crossed. Write the correction and
     /// where the code should go instead, not a restatement of the rule.
     public var reason: String?
@@ -114,6 +124,7 @@ public struct RoleDefinition: Sendable {
         deniedFrameworks: [String] = [],
         allowsThirdParty: Bool = true,
         deniedSymbols: [String] = [],
+        deniedNameSuffixes: [String] = [],
         reason: String? = nil
     ) {
         self.description = description
@@ -124,6 +135,7 @@ public struct RoleDefinition: Sendable {
         self.deniedFrameworks = deniedFrameworks
         self.allowsThirdParty = allowsThirdParty
         self.deniedSymbols = deniedSymbols
+        self.deniedNameSuffixes = deniedNameSuffixes
         self.reason = reason
     }
 
@@ -213,5 +225,46 @@ public struct ExtensionBoundary: Sendable {
         self.from = from
         self.declaredIn = declaredIn
         self.reason = reason
+    }
+}
+
+
+/// How alike sibling modules are expected to be.
+///
+/// Not every convention in a codebase is written down. Most are held in the
+/// shape of the thing: nine components have a test fixture file and the tenth
+/// does not, and nobody decided that — it just never got added. Comparing peers
+/// against each other finds those, which a rule written in advance never could,
+/// because nobody knew the convention existed until it was broken.
+public struct ConsistencySettings: Sendable, Codable {
+    /// How many siblings a group needs before its shape means anything. Two
+    /// packages disagreeing is not a convention with an exception; it is two
+    /// packages.
+    public var minimumPeers: Int
+    /// The share of siblings that must have something before its absence
+    /// elsewhere is worth reporting.
+    public var threshold: Double
+    /// Paths never compared — build output, lockfiles, anything whose presence
+    /// is incidental rather than a decision.
+    public var ignore: [String]
+
+    public init(
+        minimumPeers: Int = 3,
+        threshold: Double = 0.75,
+        ignore: [String] = ["**/*.resolved", "**/.DS_Store", "**/*.plist", "**/*.xcscheme"]
+    ) {
+        self.minimumPeers = minimumPeers
+        self.threshold = threshold
+        self.ignore = ignore
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = ConsistencySettings()
+        self.init(
+            minimumPeers: try container.decodeIfPresent(Int.self, forKey: .minimumPeers) ?? defaults.minimumPeers,
+            threshold: try container.decodeIfPresent(Double.self, forKey: .threshold) ?? defaults.threshold,
+            ignore: try container.decodeIfPresent([String].self, forKey: .ignore) ?? defaults.ignore
+        )
     }
 }

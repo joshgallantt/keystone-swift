@@ -46,7 +46,9 @@ public struct Arguments: Sendable {
 
     /// Flags that take a value. Everything else is a switch, so an unknown
     /// flag can never silently swallow the argument after it.
-    static let valued: Set<String> = ["root", "config", "since", "file", "width", "scope"]
+    static let valued: Set<String> = [
+        "root", "config", "since", "file", "width", "commit", "branch", "at"
+    ]
 
     public init(_ arguments: [String]) {
         var command = ""
@@ -129,10 +131,17 @@ public enum Help {
       uninstall <target>  Take it back out again
       doctor            Report what is installed and whether the configuration loads
 
+    WHAT TO CHECK
+      (nothing)         The whole project
+      --changed         What this branch changed, including uncommitted work
+      --staged          What is staged for the next commit
+      --branch <name>   What a branch changed against the trunk
+      --commit <sha>    What one commit touched, read as the project stood then
+      --since <ref>     Changes since a specific ref rather than the merge base
+      --at <ref>        Read the project as it was at a ref, whatever the selection
+      --file <path>     One file, with its content on stdin
+
     CHECK OPTIONS
-      --changed         Only report files this branch changed
-      --since <ref>     Compare against a specific ref rather than the merge base
-      --file <path>     Check one file, with its content on stdin
       --json            Machine-readable output
       --include-accepted  Also report violations the baseline accepted
       --no-colour       Plain text even on a terminal

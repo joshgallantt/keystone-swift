@@ -61,8 +61,15 @@ public struct DeclarationPlacementRule: Rule {
         guard hasCriterion else { return false }
 
         if let kinds = match.kinds, !kinds.contains(declaration.kind) { return false }
-        if let suffix = match.nameSuffix, !declaration.name.hasSuffix(suffix) { return false }
-        if let prefix = match.namePrefix, !declaration.name.hasPrefix(prefix) { return false }
+        // The name must be longer than the affix. A type called exactly `View`,
+        // `Client` or `Store` is a domain noun in somebody's app, not an
+        // instance of the pattern this convention is about.
+        if let suffix = match.nameSuffix {
+            guard declaration.name.hasSuffix(suffix), declaration.name.count > suffix.count else { return false }
+        }
+        if let prefix = match.namePrefix {
+            guard declaration.name.hasPrefix(prefix), declaration.name.count > prefix.count else { return false }
+        }
         if let pattern = match.nameMatches {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
             let range = NSRange(declaration.name.startIndex..<declaration.name.endIndex, in: declaration.name)

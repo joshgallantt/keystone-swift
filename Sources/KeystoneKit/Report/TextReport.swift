@@ -16,7 +16,11 @@ public struct TextReport: Sendable {
         self.colour = colour
     }
 
-    public func render(_ result: CheckResult, baselined: Int = 0) -> String {
+    /// `scoped` is true when only part of the project was reported on, which
+    /// changes what the closing line is allowed to claim. "332 files, no
+    /// violations" after checking five of them is a sentence that reads as an
+    /// all-clear the run never established.
+    public func render(_ result: CheckResult, baselined: Int = 0, scoped: Bool = false) -> String {
         var out: [String] = []
 
         let grouped = Dictionary(grouping: result.violations, by: \.rule)
@@ -31,7 +35,7 @@ public struct TextReport: Sendable {
             }
         }
 
-        out.append(summary(result, baselined: baselined))
+        out.append(summary(result, baselined: baselined, scoped: scoped))
         return out.joined(separator: "\n") + "\n"
     }
 
@@ -61,12 +65,14 @@ public struct TextReport: Sendable {
         return lines
     }
 
-    private func summary(_ result: CheckResult, baselined: Int) -> String {
+    private func summary(_ result: CheckResult, baselined: Int, scoped: Bool) -> String {
         let errors = result.errors.count
         let warnings = result.warnings.count
 
         if errors == 0 && warnings == 0 && baselined == 0 {
-            return paint("✓ \(count(result.filesChecked, "file")), no violations", .green)
+            return scoped
+                ? paint("✓ no violations", .green)
+                : paint("✓ \(count(result.filesChecked, "file")), no violations", .green)
         }
 
         var parts: [String] = []
@@ -74,7 +80,8 @@ public struct TextReport: Sendable {
         if warnings > 0 { parts.append(paint("\(warnings) \(warnings == 1 ? "warning" : "warnings")", .yellow)) }
         if parts.isEmpty { parts.append(paint("no new violations", .green)) }
 
-        var line = parts.joined(separator: ", ") + " in \(count(result.filesChecked, "file"))"
+        var line = parts.joined(separator: ", ")
+        if !scoped { line += " in \(count(result.filesChecked, "file"))" }
         if baselined > 0 {
             line += paint("  ·  \(baselined) already accepted as existing debt", .dim)
         }

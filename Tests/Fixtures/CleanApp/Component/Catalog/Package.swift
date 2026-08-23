@@ -34,6 +34,11 @@ let package = Package(
             name: "CatalogUnitTests",
             dependencies: ["Catalog"],
             path: "Tests/CatalogUnitTests"
+        ),
+        .testTarget(
+            name: "CatalogAcceptanceTests",
+            dependencies: ["Catalog"],
+            path: "Tests/CatalogAcceptanceTests"
         )
     ]
 )

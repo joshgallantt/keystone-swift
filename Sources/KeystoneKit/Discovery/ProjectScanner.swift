@@ -5,6 +5,10 @@ public struct ScannedProject: Sendable {
     public var graph: ProjectGraph
     /// Repository-relative Swift files, sorted, exclusions already applied.
     public var swiftFiles: [String]
+    /// Every file the walk saw, Swift or not. Structural comparison between
+    /// peer modules needs to notice a missing fixture, licence or resource
+    /// just as much as a missing type.
+    public var allFiles: [String]
     public var packageManifests: [String]
     public var xcodeProjects: [String]
 }
@@ -32,6 +36,7 @@ public struct ProjectScanner: Sendable {
 
     public func scan(root: String, configuration: Configuration) -> ScannedProject {
         let exclusions = GlobSet(configuration.exclude)
+        var allFiles: [String] = []
         var swiftFiles: [String] = []
         var packageManifests: [String] = []
         var xcodeProjects: [String] = []
@@ -41,6 +46,7 @@ public struct ProjectScanner: Sendable {
                 if relative.hasSuffix(".xcodeproj") { xcodeProjects.append(relative) }
                 return
             }
+            allFiles.append(relative)
             if relative.hasSuffix(".swift") {
                 if Paths.lastComponent(of: relative) == "Package.swift" {
                     packageManifests.append(relative)
@@ -50,6 +56,7 @@ public struct ProjectScanner: Sendable {
             }
         }
 
+        allFiles.sort()
         swiftFiles.sort()
         packageManifests.sort()
         xcodeProjects.sort()
@@ -64,6 +71,7 @@ public struct ProjectScanner: Sendable {
             root: root,
             graph: graph,
             swiftFiles: swiftFiles,
+            allFiles: allFiles,
             packageManifests: packageManifests,
             xcodeProjects: xcodeProjects
         )

@@ -16,10 +16,22 @@ public enum RuleRegistry {
         ModuleCycleRule(),
         DeclarationPlacementRule(),
         ExtensionBoundaryRule(),
+        ExtensionPolicyRule(),
         UndeclaredImportRule(),
         ContractBeforeImplementationRule(),
+        LayerVocabularyRule(),
+        PeerConsistencyRule(),
         SharedSingletonRule(),
         TodoCommentRule(),
+        TestTierRule(),
+        TestSupportRule(),
+        TestDoubleRule(),
+        AcceptanceVocabularyRule(),
+        TestNamingRule(),
+        SharedFixtureRule(),
+        TierRequiredRule(),
+        TestPyramidRule(),
+        SnapshotArtifactRule(),
         UnclassifiedFileRule()
     ]
 

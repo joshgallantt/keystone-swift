@@ -8,7 +8,7 @@ import Foundation
 extension Configuration: Codable {
     private enum CodingKeys: String, CodingKey {
         case version, name, exclude, roles, conventions, extensionBoundaries
-        case frameworks, severities, disabledRules
+        case frameworks, severities, disabledRules, consistency, tests
     }
 
     public init(from decoder: Decoder) throws {
@@ -22,7 +22,11 @@ extension Configuration: Codable {
             extensionBoundaries: try container.decodeIfPresent([ExtensionBoundary].self, forKey: .extensionBoundaries) ?? [],
             frameworks: try container.decodeIfPresent([String: [String]].self, forKey: .frameworks) ?? [:],
             severities: try container.decodeIfPresent([String: Severity].self, forKey: .severities) ?? [:],
-            disabledRules: try container.decodeIfPresent([String].self, forKey: .disabledRules) ?? []
+            disabledRules: try container.decodeIfPresent([String].self, forKey: .disabledRules) ?? [],
+            consistency: try container.decodeIfPresent(ConsistencySettings.self, forKey: .consistency)
+                ?? ConsistencySettings(),
+            tests: try container.decodeIfPresent(TestsConfiguration.self, forKey: .tests)
+                ?? TestsConfiguration()
         )
     }
 
@@ -37,13 +41,15 @@ extension Configuration: Codable {
         if !frameworks.isEmpty { try container.encode(frameworks, forKey: .frameworks) }
         if !severities.isEmpty { try container.encode(severities, forKey: .severities) }
         if !disabledRules.isEmpty { try container.encode(disabledRules, forKey: .disabledRules) }
+        try container.encode(consistency, forKey: .consistency)
+        if !tests.isEmpty { try container.encode(tests, forKey: .tests) }
     }
 }
 
 extension RoleDefinition: Codable {
     private enum CodingKeys: String, CodingKey {
         case description, paths, targets, mayDependOn, sameRole
-        case deniedFrameworks, allowsThirdParty, deniedSymbols, reason
+        case deniedFrameworks, allowsThirdParty, deniedSymbols, deniedNameSuffixes, reason
     }
 
     public init(from decoder: Decoder) throws {
@@ -57,6 +63,7 @@ extension RoleDefinition: Codable {
             deniedFrameworks: try container.decodeIfPresent([String].self, forKey: .deniedFrameworks) ?? [],
             allowsThirdParty: try container.decodeIfPresent(Bool.self, forKey: .allowsThirdParty) ?? true,
             deniedSymbols: try container.decodeIfPresent([String].self, forKey: .deniedSymbols) ?? [],
+            deniedNameSuffixes: try container.decodeIfPresent([String].self, forKey: .deniedNameSuffixes) ?? [],
             reason: try container.decodeIfPresent(String.self, forKey: .reason)
         )
     }
@@ -71,6 +78,7 @@ extension RoleDefinition: Codable {
         if !deniedFrameworks.isEmpty { try container.encode(deniedFrameworks, forKey: .deniedFrameworks) }
         try container.encode(allowsThirdParty, forKey: .allowsThirdParty)
         if !deniedSymbols.isEmpty { try container.encode(deniedSymbols, forKey: .deniedSymbols) }
+        if !deniedNameSuffixes.isEmpty { try container.encode(deniedNameSuffixes, forKey: .deniedNameSuffixes) }
         try container.encodeIfPresent(reason, forKey: .reason)
     }
 }

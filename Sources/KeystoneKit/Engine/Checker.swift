@@ -74,6 +74,7 @@ public struct Checker: Sendable {
             symbols: SymbolIndex.build(files: files, graph: scanned.graph),
             catalog: configuration.catalog,
             files: files,
+            allFiles: scanned.allFiles,
             scope: .project
         )
 

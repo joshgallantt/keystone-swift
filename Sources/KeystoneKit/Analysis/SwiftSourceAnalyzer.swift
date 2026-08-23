@@ -25,7 +25,8 @@ public struct SwiftSourceAnalyzer: Sendable {
             declarations: visitor.declarations,
             extensions: visitor.extensions,
             typeReferences: visitor.orderedTypeReferences,
-            comments: CommentScanner.scan(tree: tree, converter: converter)
+            comments: CommentScanner.scan(tree: tree, converter: converter),
+            tests: visitor.tests
         )
     }
 }
@@ -35,6 +36,7 @@ private final class FactVisitor: SyntaxVisitor {
     var imports: [ImportReference] = []
     var declarations: [Declaration] = []
     var extensions: [Declaration] = []
+    var tests: [TestDeclaration] = []
     private var typeReferences: [String: Int] = [:]
     private var nestingDepth = 0
 
@@ -133,7 +135,8 @@ private final class FactVisitor: SyntaxVisitor {
                     inheritedTypes: node.inheritanceClause?.inheritedTypes.compactMap {
                         FactVisitor.rootTypeName($0.type)
                     } ?? [],
-                    isTopLevel: nestingDepth == 0
+                    isTopLevel: nestingDepth == 0,
+                    isConstrained: node.genericWhereClause != nil
                 )
             )
         }
@@ -142,6 +145,32 @@ private final class FactVisitor: SyntaxVisitor {
     }
 
     override func visitPost(_ node: ExtensionDeclSyntax) { nestingDepth -= 1 }
+
+    override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
+        let name = node.name.text
+
+        if let attribute = node.attributes.lazy.compactMap({ $0.as(AttributeSyntax.self) }).first(where: {
+            $0.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Test"
+        }) {
+            tests.append(
+                TestDeclaration(
+                    functionName: name,
+                    displayName: FactVisitor.firstStringArgument(of: attribute),
+                    line: line(node),
+                    style: .swiftTesting
+                )
+            )
+            return .visitChildren
+        }
+
+        // XCTest's convention. Checked by name because that is genuinely all
+        // XCTest gives you — the runner finds tests the same way.
+        if name.hasPrefix("test"), node.signature.parameterClause.parameters.isEmpty {
+            tests.append(TestDeclaration(functionName: name, line: line(node), style: .xctest))
+        }
+
+        return .visitChildren
+    }
 
     override func visit(_ node: VariableDeclSyntax) -> SyntaxVisitorContinueKind {
         let isStatic = node.modifiers.contains { $0.name.text == "static" || $0.name.text == "class" }
@@ -204,6 +233,15 @@ private final class FactVisitor: SyntaxVisitor {
                 isTopLevel: nestingDepth == 0
             )
         )
+    }
+
+    /// The sentence in `@Test("…")`, ignoring traits that follow it.
+    static func firstStringArgument(of attribute: AttributeSyntax) -> String? {
+        guard case .argumentList(let arguments) = attribute.arguments else { return nil }
+        for argument in arguments where argument.label == nil {
+            if let value = SyntaxReader.stringValue(argument.expression) { return value }
+        }
+        return nil
     }
 
     static func accessLevel(_ modifiers: DeclModifierListSyntax) -> AccessLevel {

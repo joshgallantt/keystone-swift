@@ -24,6 +24,13 @@ public enum Presets {
                 "URLSession", "URLRequest", "URLComponents", "FileManager", "UserDefaults",
                 "NSManagedObject", "NSPersistentContainer", "NotificationCenter", "Bundle"
             ],
+            // Words that belong to the layer that owns the wire. A domain
+            // service is named for what the business needs done, not for the
+            // thing on the other end of it.
+            deniedNameSuffixes: [
+                "Client", "API", "Endpoint", "Gateway", "DAO", "Database",
+                "Cache", "Socket", "Serializer", "Codec"
+            ],
             reason: "The domain states the business rules and declares what it needs as protocols. "
                 + "Anything that talks to a network, a disk, a framework or a screen is a detail: put the "
                 + "protocol here and the implementation in the layer that owns that detail, then let the "
@@ -104,9 +111,68 @@ public enum Presets {
                         + "the same rule. Build a presentation model instead: a struct this screen owns, holding "
                         + "already-worded values, mapped from the domain type by an initialiser in its own body."
                 )
-            ]
+            ],
+            tests: testing
         )
     }
+
+    /// Two tiers that answer different questions, and a third for the one thing
+    /// neither can answer.
+    ///
+    /// An acceptance failure says *this stopped working*; a unit failure says
+    /// *which rule is wrong*. Neither can tell you a screen now lays something out
+    /// wrongly, which is what the snapshot tier is for — and
+    /// why it is required of a package with views rather than of everything.
+    public static let testing = TestsConfiguration(
+        tiers: [
+            TestTier(
+                name: "acceptance",
+                paths: ["**/Tests/*AcceptanceTests/**"],
+                namesReadAsProse: true,
+                mayNotReference: [.data],
+                requiredFor: [
+                    TierRequirement(
+                        roles: [.domain],
+                        reason: "Every component states its business rules as a journey somebody takes, "
+                            + "readable by a person who does not know the code."
+                    )
+                ],
+                reason: "Drive the feature through this tier's own driver — the role objects in Support/ — "
+                    + "so the feature can be rearranged underneath the suite without touching it. The "
+                    + "driver may name concrete types; the tests may not."
+            ),
+            TestTier(
+                name: "unit",
+                paths: ["**/Tests/*UnitTests/**"],
+                requiredFor: [
+                    TierRequirement(roles: [.domain]),
+                    TierRequirement(
+                        roles: [.presentation],
+                        declaring: ConventionMatch(nameSuffix: "ViewModel", kinds: [.struct, .class, .actor]),
+                        reason: "A feature package earns a unit tier by having a view model. One with "
+                            + "nothing but views has no unit for a unit test to name."
+                    )
+                ]
+            ),
+            TestTier(
+                name: "snapshot",
+                paths: ["**/Tests/*SnapshotTests/**"],
+                requiredFor: [
+                    TierRequirement(
+                        roles: [.presentation],
+                        declaring: ConventionMatch(nameSuffix: "View", kinds: [.struct]),
+                        reason: "A view is the one thing neither other tier can check. Apple ships no "
+                            + "snapshot testing, so this means pointfreeco/swift-snapshot-testing, which "
+                            + "has native Swift Testing support."
+                    )
+                ],
+                artifactDirectory: "__Snapshots__"
+            )
+        ],
+        // Snapshot counts track the number of views rather than the depth of
+        // the logic, so they are deliberately outside the pyramid.
+        pyramid: ["unit", "acceptance"]
+    )
 
     /// Conventions worth having in nearly every Swift codebase, because they
     /// are the names Swift developers already reach for. Each one is a pairing
@@ -165,29 +231,13 @@ public enum Presets {
             exemptRoles: [.tests, .composition],
             reason: "A view is presentation, and a view declared outside it is a layer drawing its own screen.",
             source: Sources.humbleObject
-        ),
-        Convention(
-            name: "clients-live-in-data",
-            // Concrete types only. A `*Client` *protocol* is a gateway — the
-            // domain asking for a capability in its own words — and belongs
-            // exactly where it is declared. Only the thing that speaks HTTP
-            // is a detail.
-            match: ConventionMatch(nameSuffix: "Client", kinds: [.struct, .class, .actor]),
-            requireRole: [.data],
-            exemptRoles: [.tests, .composition, .library],
-            reason: "A concrete client speaks a remote system's language. Keep it in data and give the domain a "
-                + "protocol phrased in the business's language instead.",
-            source: Sources.repository
-        ),
-        Convention(
-            name: "stores-live-in-data",
-            match: ConventionMatch(nameSuffix: "Store", kinds: [.struct, .class, .actor]),
-            requireRole: [.data],
-            exemptRoles: [.tests, .composition, .library],
-            severity: .warning,
-            reason: "A store is persistence. If this type is holding view state rather than writing to disk, "
-                + "rename it — the suffix is telling readers something untrue.",
-            source: Sources.repository
         )
+        // `clients-live-in-data` and `stores-live-in-data` are deliberately
+        // absent. Both read well until you meet the app they are wrong for: a
+        // CRM whose `Client` is its most important entity, a retail app whose
+        // `Store` is a place on a map. `UseCase`, `Repository`, `DTO`,
+        // `ViewModel` and `View` name patterns, so they can be defaults; a
+        // suffix that is also an ordinary noun cannot. Both are in the README
+        // as opt-in conventions, for the projects they suit.
     ]
 }

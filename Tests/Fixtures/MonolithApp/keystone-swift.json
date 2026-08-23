@@ -1,4 +1,14 @@
 {
+  "consistency" : {
+    "ignore" : [
+      "**/*.resolved",
+      "**/.DS_Store",
+      "**/*.plist",
+      "**/*.xcscheme"
+    ],
+    "minimumPeers" : 3,
+    "threshold" : 0.75
+  },
   "conventions" : [
     {
       "exemptRoles" : [
@@ -219,6 +229,18 @@
         "media",
         "system"
       ],
+      "deniedNameSuffixes" : [
+        "Client",
+        "API",
+        "Endpoint",
+        "Gateway",
+        "DAO",
+        "Database",
+        "Cache",
+        "Socket",
+        "Serializer",
+        "Codec"
+      ],
       "deniedSymbols" : [
         "URLSession",
         "URLRequest",
@@ -285,6 +307,105 @@
       ],
       "sameRole" : "allow"
     }
+  },
+  "tests" : {
+    "doublePrefixes" : [
+      "Stub",
+      "Spy",
+      "Mock",
+      "Fake",
+      "Dummy",
+      "InMemory"
+    ],
+    "pyramid" : [
+      "unit",
+      "acceptance"
+    ],
+    "sharedFixtureNames" : [
+      "Fixtures",
+      "Fixture",
+      "TestData",
+      "SharedFixture",
+      "Constants"
+    ],
+    "supportDirectory" : "Support",
+    "tiers" : [
+      {
+        "mayNotReference" : [
+          "data"
+        ],
+        "name" : "acceptance",
+        "namesReadAsProse" : true,
+        "paths" : [
+          "**/Tests/*AcceptanceTests/**"
+        ],
+        "reason" : "Drive the feature through this tier's own driver — the role objects in Support/ — so the feature can be rearranged underneath the suite without touching it. The driver may name concrete types; the tests may not.",
+        "requiredFor" : [
+          {
+            "reason" : "Every component states its business rules as a journey somebody takes, readable by a person who does not know the code.",
+            "roles" : [
+              "domain"
+            ]
+          }
+        ]
+      },
+      {
+        "mayNotReference" : [
+
+        ],
+        "name" : "unit",
+        "namesReadAsProse" : false,
+        "paths" : [
+          "**/Tests/*UnitTests/**"
+        ],
+        "requiredFor" : [
+          {
+            "roles" : [
+              "domain"
+            ]
+          },
+          {
+            "declaring" : {
+              "kinds" : [
+                "struct",
+                "class",
+                "actor"
+              ],
+              "nameSuffix" : "ViewModel"
+            },
+            "reason" : "A feature package earns a unit tier by having a view model. One with nothing but views has no unit for a unit test to name.",
+            "roles" : [
+              "presentation"
+            ]
+          }
+        ]
+      },
+      {
+        "artifactDirectory" : "__Snapshots__",
+        "mayNotReference" : [
+
+        ],
+        "name" : "snapshot",
+        "namesReadAsProse" : false,
+        "paths" : [
+          "**/Tests/*SnapshotTests/**"
+        ],
+        "requiredFor" : [
+          {
+            "declaring" : {
+              "kinds" : [
+                "struct"
+              ],
+              "nameSuffix" : "View"
+            },
+            "reason" : "A view is the one thing neither other tier can check. Apple ships no snapshot testing, so this means pointfreeco/swift-snapshot-testing, which has native Swift Testing support.",
+            "roles" : [
+              "presentation"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "version" : 1
 }

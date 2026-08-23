@@ -37,6 +37,9 @@ public struct RuleContext: Sendable {
     /// The files to report on. In project scope this is everything; in single
     /// file scope it is the one pending write.
     public let files: [AnalyzedFile]
+    /// Every file in the project, Swift or not, for rules that reason about
+    /// shape rather than about code.
+    public let allFiles: [String]
     public let scope: CheckScope
 
     public init(
@@ -46,6 +49,7 @@ public struct RuleContext: Sendable {
         symbols: SymbolIndex,
         catalog: FrameworkCatalog,
         files: [AnalyzedFile],
+        allFiles: [String] = [],
         scope: CheckScope
     ) {
         self.configuration = configuration
@@ -54,7 +58,24 @@ public struct RuleContext: Sendable {
         self.symbols = symbols
         self.catalog = catalog
         self.files = files
+        self.allFiles = allFiles
         self.scope = scope
+    }
+
+    /// Every package directory in the project, longest first so that a nested
+    /// package wins over the one containing it.
+    public var packageDirectories: [String] {
+        Set(graph.orderedModules.compactMap(\.packageDirectory))
+            .filter { !$0.isEmpty }
+            .sorted { $0.count == $1.count ? $0 < $1 : $0.count > $1.count }
+    }
+
+    /// The package a path belongs to, found by containment rather than through
+    /// the module graph — a test target that has not been declared in the
+    /// manifest yet still lives inside a package, and a rule about missing
+    /// tiers is precisely the one that has to see it.
+    public func package(containing path: String) -> String? {
+        packageDirectories.first { path.hasPrefix($0 + "/") }
     }
 
     public func definition(for role: Role?) -> RoleDefinition? {
@@ -132,6 +153,18 @@ public enum Sources {
         "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 15 — Data Transfer Object."
     public static let separatedInterface =
         "Martin Fowler, Patterns of Enterprise Application Architecture (2002), Ch. 18 — Separated Interface."
+    public static let singleResponsibility =
+        "Robert C. Martin, Clean Architecture (2017), Ch. 7 — The Single Responsibility Principle."
+    public static let ubiquitousLanguage =
+        "Eric Evans, Domain-Driven Design (2003), Ch. 2 — Ubiquitous Language; Ch. 5 — Services."
+    public static let testBoundary =
+        "Robert C. Martin, Clean Architecture (2017), Ch. 28 — The Test Boundary."
+    public static let testDoubles =
+        "Gerard Meszaros, xUnit Test Patterns (2007) — Test Double; Martin Fowler, Mocks Aren't Stubs (2007)."
+    public static let testDataBuilder =
+        "Freeman & Pryce, Growing Object-Oriented Software, Guided by Tests (2009), Ch. 22 — Constructing Complex Test Data."
+    public static let acceptanceTests =
+        "Robert C. Martin, The Clean Coder (2011), Ch. 7 — Acceptance Testing."
     public static let compositionRoot =
         "Seemann & van Deursen, Dependency Injection: Principles, Practices, and Patterns (2019), Ch. 4 — Composition Root."
 }
