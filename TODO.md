@@ -18,12 +18,9 @@
 
 ## Missing concepts
 
-- **`testSupport` role.** Sharing test doubles across packages needs a regular
-  `.target` published as a library — a test target cannot be shared across
-  packages (SwiftPM dies with an internal error). Such a target must be
-  reachable only from tests, which needs a reverse constraint: `visibleTo`, the
-  inverse of `mayDependOn`. Without it, `composition` (which may depend on
-  anything) could link test doubles into the shipping app.
+- ~~**`testSupport` role.**~~ Done, along with `visibleTo` — the inverse of
+  `mayDependOn`, needed because the layer most in need of stopping is the
+  composition root, which may depend on everything by definition.
 - **Per-rule options.** Rules take a severity but no parameters. SwiftLint's
   `line_length: warning: 120` shape is worth copying for things like
   `test-pyramid`'s tolerance and `peer-consistency`'s threshold, which are

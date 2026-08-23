@@ -13,13 +13,21 @@ extension Configuration: Codable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // A section the file does not mention keeps the built-in answer. A
+        // manifest exists to state the handful of things this project has
+        // decided differently, and writing five lines about one exemption must
+        // not silently take the other twenty-nine rules with it.
+        let standard = Presets.cleanArchitecture(paths: [:])
         self.init(
             version: try container.decodeIfPresent(Int.self, forKey: .version) ?? 1,
             name: try container.decodeIfPresent(String.self, forKey: .name),
             exclude: try container.decodeIfPresent([String].self, forKey: .exclude) ?? Configuration.defaultExclusions,
-            roles: try container.decodeIfPresent([String: RoleDefinition].self, forKey: .roles) ?? [:],
-            conventions: try container.decodeIfPresent([Convention].self, forKey: .conventions) ?? [],
-            extensionBoundaries: try container.decodeIfPresent([ExtensionBoundary].self, forKey: .extensionBoundaries) ?? [],
+            roles: try container.decodeIfPresent([String: RoleDefinition].self, forKey: .roles)
+                ?? standard.roles,
+            conventions: try container.decodeIfPresent([Convention].self, forKey: .conventions)
+                ?? standard.conventions,
+            extensionBoundaries: try container.decodeIfPresent([ExtensionBoundary].self, forKey: .extensionBoundaries)
+                ?? standard.extensionBoundaries,
             frameworks: try container.decodeIfPresent([String: [String]].self, forKey: .frameworks) ?? [:],
             severities: try container.decodeIfPresent([String: Severity].self, forKey: .severities) ?? [:],
             disabledRules: try container.decodeIfPresent([String].self, forKey: .disabledRules) ?? [],
@@ -27,7 +35,7 @@ extension Configuration: Codable {
             consistency: try container.decodeIfPresent(ConsistencySettings.self, forKey: .consistency)
                 ?? ConsistencySettings(),
             tests: try container.decodeIfPresent(TestsConfiguration.self, forKey: .tests)
-                ?? TestsConfiguration()
+                ?? standard.tests
         )
     }
 

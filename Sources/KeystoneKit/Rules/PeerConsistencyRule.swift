@@ -11,6 +11,15 @@ import Foundation
 /// each other, and reports what the majority does and the minority does not.
 /// A warning, always: a difference is evidence of a decision nobody made, not
 /// proof of a mistake, and sometimes the odd one out is right.
+///
+/// Peers are packages *made of the same layers*, which took a wrong turn first.
+/// Grouping by directory instead — everything under `Component/` — treated a
+/// package of pure value objects as a peer of a full component with storage and
+/// a container, and then reported it for lacking both. Those were not
+/// discrepancies to be exempted one by one; they were the rule comparing things
+/// that were never alike. A package with no data layer is not a component
+/// missing its data layer, and the layers a package is built from say so
+/// without anybody having to write it down.
 public struct PeerConsistencyRule: Rule {
     public let identifier = "peer-consistency"
     public let defaultSeverity: Severity = .warning
@@ -21,18 +30,24 @@ public struct PeerConsistencyRule: Rule {
     public func evaluate(_ context: RuleContext) -> [Violation] {
         let settings = context.configuration.consistency
         let ignored = GlobSet(settings.ignore)
+        let exempt = ExemptionSet(settings.exempt)
 
-        // Peers are packages sharing a parent directory: `Component/*` are
-        // siblings, and so are `UI/*`, but a component and a feature are not.
+        var layersByPackage: [String: Set<String>] = [:]
+        for module in context.graph.orderedModules {
+            guard let package = module.packageDirectory, !package.isEmpty,
+                  let role = context.assignment.role(ofModule: module.name) else { continue }
+            layersByPackage[package, default: []].insert(role.rawValue)
+        }
+
         var groups: [String: [String]] = [:]
-        for package in Set(context.graph.orderedModules.compactMap(\.packageDirectory)) where !package.isEmpty {
-            groups[Paths.directory(of: package), default: []].append(package)
+        for (package, layers) in layersByPackage {
+            groups[layers.sorted().joined(separator: "+"), default: []].append(package)
         }
 
         var violations: [Violation] = []
 
-        for parent in groups.keys.sorted() {
-            let peers = groups[parent]!.sorted()
+        for shape in groups.keys.sorted() {
+            let peers = groups[shape]!.sorted()
             guard peers.count >= settings.minimumPeers else { continue }
 
             var holders: [String: [String]] = [:]
@@ -56,14 +71,18 @@ public struct PeerConsistencyRule: Rule {
 
             for package in peers.sorted() {
                 guard let absent = missing[package] else { continue }
+
                 // A package missing a whole directory is also missing
                 // everything in it. Reporting the contents as well turns one
                 // fact into fifteen and buries it.
-                for feature in PeerConsistencyRule.outermost(absent).sorted() {
+                // Still a peer — its shape is evidence about the others — but
+                // absences already accounted for are not reported again.
+                for feature in PeerConsistencyRule.outermost(absent).sorted()
+                where !exempt.covers(package: package, feature: feature) {
                     violations.append(
                         violation(
                             package: package,
-                            parent: parent,
+                            shape: shape,
                             feature: feature,
                             having: holders[feature]!.count,
                             total: peers.count,
@@ -79,7 +98,7 @@ public struct PeerConsistencyRule: Rule {
 
     private func violation(
         package: String,
-        parent: String,
+        shape: String,
         feature: String,
         having: Int,
         total: Int,
@@ -97,7 +116,8 @@ public struct PeerConsistencyRule: Rule {
             file: where_,
             line: nil,
             summary: "`\(Paths.lastComponent(of: package))` has no `\(feature)`, which \(having) of the "
-                + "\(total) packages under `\(parent)/` have",
+                + "\(total) packages built the same way have "
+                + "(\(PeerConsistencyRule.describe(shape)))",
             fix: "Add the \(noun) at `\(expected)`, or record why this one differs. Nothing declared this "
                 + "convention — it is what the other \(having) already do, which is how conventions "
                 + "usually exist. If the difference is deliberate, `consistency.ignore` in the "
@@ -141,6 +161,13 @@ public struct PeerConsistencyRule: Rule {
         }
     }
 
+    /// A package's shape, as prose: the layers it is made of.
+    static func describe(_ shape: String) -> String {
+        let layers = shape.split(separator: "+").map { "`\($0)`" }
+        guard layers.count > 1 else { return layers.joined() }
+        return layers.dropLast().joined(separator: ", ") + " and " + layers.last!
+    }
+
     static func normalise(_ path: String, name: String) -> String {
         guard !name.isEmpty else { return path }
         return path
@@ -152,5 +179,32 @@ public struct PeerConsistencyRule: Rule {
     static func denormalise(_ feature: String, name: String) -> String {
         let trimmed = feature.hasSuffix("/") ? String(feature.dropLast()) : feature
         return trimmed.replacingOccurrences(of: "*", with: name)
+    }
+}
+
+
+/// Absences a project has already decided about.
+struct ExemptionSet: Sendable {
+    private let whole: GlobSet
+    private let specific: [(package: Glob, feature: String)]
+
+    init(_ entries: [String]) {
+        var whole: [String] = []
+        var specific: [(Glob, String)] = []
+        for entry in entries {
+            guard let separator = entry.lastIndex(of: ":") else {
+                whole.append(entry)
+                continue
+            }
+            specific.append((Glob(String(entry[entry.startIndex..<separator])),
+                             String(entry[entry.index(after: separator)...])))
+        }
+        self.whole = GlobSet(whole)
+        self.specific = specific
+    }
+
+    func covers(package: String, feature: String) -> Bool {
+        if whole.matches(package) { return true }
+        return specific.contains { $0.package.matches(package) && $0.feature == feature }
     }
 }

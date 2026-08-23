@@ -269,15 +269,30 @@ public struct ConsistencySettings: Sendable, Codable {
     /// Paths never compared — build output, lockfiles, anything whose presence
     /// is incidental rather than a decision.
     public var ignore: [String]
+    /// Absences already accounted for. `Component/Money` exempts a package
+    /// entirely; `UI/SheetUI:Sources/UI/` exempts it from one expectation only.
+    ///
+    /// The second form matters more than it looks. A package can be a
+    /// legitimately different shape in one respect and genuinely deficient in
+    /// another — these three UI packages use a port layout rather than a
+    /// feature one, *and* have no tests at all — and exempting them wholesale
+    /// would file the second fact away behind the first.
+    ///
+    /// Distinct from `ignore`, which removes files from the comparison: do that
+    /// to a package and it appears to be missing everything, which is the
+    /// opposite of what was meant.
+    public var exempt: [String]
 
     public init(
         minimumPeers: Int = 3,
         threshold: Double = 0.75,
-        ignore: [String] = ["**/*.resolved", "**/.DS_Store", "**/*.plist", "**/*.xcscheme"]
+        ignore: [String] = ["**/*.resolved", "**/.DS_Store", "**/*.plist", "**/*.xcscheme"],
+        exempt: [String] = []
     ) {
         self.minimumPeers = minimumPeers
         self.threshold = threshold
         self.ignore = ignore
+        self.exempt = exempt
     }
 
     public init(from decoder: Decoder) throws {
@@ -286,7 +301,8 @@ public struct ConsistencySettings: Sendable, Codable {
         self.init(
             minimumPeers: try container.decodeIfPresent(Int.self, forKey: .minimumPeers) ?? defaults.minimumPeers,
             threshold: try container.decodeIfPresent(Double.self, forKey: .threshold) ?? defaults.threshold,
-            ignore: try container.decodeIfPresent([String].self, forKey: .ignore) ?? defaults.ignore
+            ignore: try container.decodeIfPresent([String].self, forKey: .ignore) ?? defaults.ignore,
+            exempt: try container.decodeIfPresent([String].self, forKey: .exempt) ?? []
         )
     }
 }
