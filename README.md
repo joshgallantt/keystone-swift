@@ -179,7 +179,7 @@ the other combination.
 | `acceptance-vocabulary` | An acceptance test naming a type the data layer declared |
 | `test-names-read-as-prose` | A business-facing test named as an identifier |
 | `tier-required` | A package that owes a tier and has none |
-| `test-pyramid` | A tier far narrower than the one above it *(warning)* |
+| `test-pyramid` | A tier far narrower than the one above it — off until `tests.pyramid` names an order *(warning)* |
 | `no-shared-fixtures` | A file of shared test data *(warning)* |
 | `snapshots-are-committed` | A snapshot suite with nothing recorded *(warning)* |
 
@@ -255,6 +255,15 @@ and the code. `@Test("…")` gives the readable sentence natively, and unlike a 
 keystone-swift can *enforce* the rest: prose names, and nothing from the data layer
 named in the suite. A Gherkin runner would happily execute a feature file full of
 `FakeCatalog`.
+
+**On the pyramid.** The `test-pyramid` rule is off unless you name an order, because
+counting tests only stands in for the thing the pyramid is about — cost and scope — when
+the tiers actually differ in cost. An acceptance suite driven through a testing API
+against in-memory fakes does not: it is a mid-pyramid service test phrased in the
+business's language, which is Vocke's point in
+[The Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html)
+that acceptance testing is a *purpose* rather than a level. Name the order if your tiers
+really do differ — one that drives a simulator, or a real service.
 
 **On snapshots.** Apple ships none — not in Swift Testing, not in XCTest. The standard is
 [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing),

@@ -187,17 +187,26 @@ public enum Presets {
                 artifactDirectory: "__Snapshots__"
             )
         ],
-        // Acceptance first, deliberately: this architecture tests through the
-        // domain's own vocabulary, so the journeys are the foundation and the
-        // unit tier fills in underneath them. That is the inversion of the
-        // classic pyramid and it follows from the same decision that put a
-        // testing API in the acceptance suite — a test written against a
-        // journey survives the feature being rearranged, while a test written
-        // against a seam breaks with the seam.
+        // Empty, so the shape rule is inert unless a project asks for it.
         //
-        // Snapshot counts track how many views there are rather than how deep
-        // the logic goes, so they stay outside the shape entirely.
-        pyramid: ["acceptance", "unit"]
+        // The pyramid is about cost and scope — how much of the system a test
+        // exercises, how slow it is, how often it breaks for reasons unrelated
+        // to the change. This can only count files in directories, and counting
+        // is a proxy that holds solely when the tiers actually differ in cost.
+        //
+        // Here they do not. An acceptance suite driven through a testing API
+        // against in-memory fakes never touches a network or a database: it is
+        // a mid-pyramid service test phrased in the business's language, which
+        // is Vocke's point in *The Practical Test Pyramid* that acceptance
+        // testing is a purpose rather than a level. Counting it against the
+        // unit tier measured nothing, and said so loudly — on the reference
+        // project the classic order flagged six packages and the reverse order
+        // flagged ten, which is what a rule looks like when it is reading the
+        // wrong signal.
+        //
+        // A project whose tiers genuinely differ in cost — one that drives a
+        // simulator or a real service — states the order and gets the rule.
+        pyramid: []
     )
 
     /// Conventions worth having in nearly every Swift codebase, because they

@@ -283,9 +283,9 @@
       "InMemory"
     ],
     "pyramid" : [
-      "acceptance",
-      "unit"
+
     ],
+    "pyramidRatio" : 0.5,
     "sharedFixtureNames" : [
       "Fixtures",
       "Fixture",

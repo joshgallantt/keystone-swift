@@ -2,15 +2,18 @@ import Foundation
 
 /// The base of the shape is not narrower than what sits on it.
 ///
-/// Which tier is the base is the project's decision, and `tests.pyramid` states
-/// it. The default here is acceptance-first, which inverts the classic pyramid
-/// on purpose: an architecture that tests through the domain's own vocabulary
-/// puts the journeys underneath, because a test written against a journey
-/// survives the feature being rearranged and a test written against a seam
-/// breaks with the seam.
+/// Off unless `tests.pyramid` names an order, because counting tests is only a
+/// proxy for the thing the pyramid is about.
 ///
-/// Reverse the list for the classic shape. Either way the rule is the same:
-/// whatever the project says is the base should not be the smaller tier.
+/// The pyramid concerns cost and scope: how much of the system a test
+/// exercises, how slow it is, how often it fails for reasons unrelated to the
+/// change. Counting files by directory stands in for that only when the tiers
+/// really do differ in cost. An acceptance suite driven through a testing API
+/// against in-memory fakes does not — it is a mid-pyramid service test in the
+/// business's language, and holding it against the unit tier measures nothing.
+///
+/// Name the order and the rule applies: whichever tier is listed first should
+/// not be the far smaller one.
 ///
 /// Compared only where both tiers actually exist — a package that owes a tier
 /// and has none is a different complaint, and `tier-required` makes it.

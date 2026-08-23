@@ -74,10 +74,8 @@ Build succeeds; all fourteen affected test schemes pass. What is left:
   eight — and the same treatment would clear the rest: `StubCatalog`,
   `StubNavigation`, `SpySnackbarPresenter` and the others each belong to the
   component whose protocol they stand in for.
-- **3 lopsided suites**, down from ten. The default shape is acceptance-first —
-  this architecture drives through the domain's own vocabulary, so the journeys
-  are the base and the unit tier fills in underneath. `Order`, `ProductActionsUI`
-  and `WishlistUI` are each better than two to one the other way.
+- **No pyramid findings.** The rule is now off unless a project names an order:
+  this project's tiers do not differ in cost, so counting them measured nothing.
 - **2 peer discrepancies**, both worth a look rather than an exemption:
   `Product` has no `Sources/Data/*Store.swift` and `SearchHistory` has no
   `Sources/Data/DTO/`, where six of the seven packages built the same way do.

@@ -227,14 +227,24 @@ struct TestingHygieneTests {
         #expect(try fixture.check().warningRules.contains("no-shared-fixtures"))
     }
 
-    @Test("a tier far narrower than the one above it is reported")
+    /// The rule is inert until a project names an order, because counting
+    /// tests only stands in for cost when the tiers differ in cost. A project
+    /// that says which tier is the base gets the check.
+    func withPyramid(_ order: [String], _ fixture: Fixture) throws {
+        var configuration = try fixture.configuration()
+        configuration.tests.pyramid = order
+        try ConfigurationLoader.write(
+            configuration,
+            to: Paths.join(fixture.root, ConfigurationLoader.fileName)
+        )
+    }
+
+    @Test("a tier far narrower than the one above it is reported, once an order is named")
     func aLopsidedShapeIsReported() throws {
         let fixture = try Fixture.load("CleanApp")
         defer { fixture.destroy() }
 
-        // Acceptance is the base by default: this architecture drives through
-        // the domain's own vocabulary, so a package with four times as many
-        // unit tests as journeys has its testing the wrong way up.
+        try withPyramid(["acceptance", "unit"], fixture)
         try fixture.write("Component/Catalog/Tests/CatalogUnitTests/MoreTests.swift", """
         import Testing
         @testable import Catalog
@@ -254,7 +264,28 @@ struct TestingHygieneTests {
         let fixture = try Fixture.load("CleanApp")
         defer { fixture.destroy() }
 
+        try withPyramid(["acceptance", "unit"], fixture)
+
         // Two against three is not a shape, it is two numbers that differ.
+        #expect(!(try fixture.check().warningRules.contains("test-pyramid")))
+    }
+
+    @Test("with no order named, the shape is not anybody's business")
+    func noOrderMeansNoOpinion() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        try fixture.write("Component/Catalog/Tests/CatalogUnitTests/MoreTests.swift", """
+        import Testing
+        @testable import Catalog
+
+        @Test("identity survives a round trip") func identitySurvives() {}
+        @Test("names are kept verbatim") func namesKept() {}
+        @Test("an empty name is still a name") func emptyNames() {}
+        @Test("two different items differ") func differentItems() {}
+        @Test("the same item matches itself") func sameItem() {}
+        """)
+
         #expect(!(try fixture.check().warningRules.contains("test-pyramid")))
     }
 
