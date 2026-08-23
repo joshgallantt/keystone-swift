@@ -22,7 +22,7 @@ public struct ContractBeforeImplementationRule: Rule {
         var violations: [Violation] = []
 
         for file in context.files {
-            guard let role = file.role, role != .tests else { continue }
+            guard let role = file.role, !role.isTestFacing else { continue }
 
             // A conformance added in an extension counts. Swift lets a type
             // adopt a protocol anywhere in the file, and a rule that only read

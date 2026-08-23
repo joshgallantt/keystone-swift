@@ -26,6 +26,13 @@ public struct Role: Hashable, Sendable, CustomStringConvertible {
     /// which is exactly why something has to stop it being linked into the app.
     public static let testSupport = Role("testSupport")
 
+    /// Roles whose code exists to serve tests. They are scaffolding, and the
+    /// rules about how production code should be shaped do not apply to them —
+    /// an extension in a double travels no further than the suite using it.
+    public var isTestFacing: Bool {
+        self == .tests || self == .testSupport
+    }
+
     /// The order roles are printed in, so two runs never disagree about
     /// which violation comes first.
     public static let conventionalOrder: [Role] = [

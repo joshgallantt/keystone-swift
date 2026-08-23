@@ -19,7 +19,7 @@ public struct SharedSingletonRule: Rule {
         var violations: [Violation] = []
 
         for file in context.files {
-            guard let role = file.role, role != .tests,
+            guard let role = file.role, !role.isTestFacing,
                   let definition = context.definition(for: role),
                   !definition.dependsOnAnything else { continue }
 

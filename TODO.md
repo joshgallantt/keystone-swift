@@ -62,24 +62,28 @@ SwiftLint's, which is better integrated.
 
 ## In the reference project
 
-Down from 26 errors and 59 warnings to **12 and 19**, with no manifest at all.
-Build succeeds; all fourteen affected test schemes pass. What is left:
+**Zero errors.** Down from 26 errors and 59 warnings to **0 and 10**, with no
+manifest at all. Every UI package now has a snapshot suite with its references
+committed, and the doubles two suites share live in a `TestSupport` module
+rather than being written twice.
 
-- **12 missing snapshot suites.** Needs `swift-snapshot-testing` added to each
-  UI package and a simulator run to record references. The images cannot be
-  faked: a suite with nothing committed writes its reference every run and
-  compares it against itself, so it is green and has never been able to fail.
-- **11 duplicated test doubles**, down from 13. `SessionTestSupport` took the
-  two worst — `StubGetSession` written ten times over, `StubObserveSession`
-  eight — and the same treatment would clear the rest: `StubCatalog`,
-  `StubNavigation`, `SpySnackbarPresenter` and the others each belong to the
-  component whose protocol they stand in for.
-- **No pyramid findings.** The rule is now off unless a project names an order:
-  this project's tiers do not differ in cost, so counting them measured nothing.
-- **2 peer discrepancies**, both worth a look rather than an exemption:
-  `Product` has no `Sources/Data/*Store.swift` and `SearchHistory` has no
-  `Sources/Data/DTO/`, where six of the seven packages built the same way do.
+What is left, all warnings:
+
+- **7 duplicated doubles**, down from 13. The remaining ones are the same
+  problem `SessionTestSupport` solved, one component at a time: `StubCatalog`
+  and `StubBrowseCatalog` belong to Product, `StubNavigation` and
+  `SpySnackbarPresenter` to the packages whose protocols they stand in for.
+- **3 peer discrepancies.** `Product` has no `Sources/Data/*Store.swift` and
+  `SearchHistory` no `Sources/Data/DTO/`, where six of the seven packages built
+  the same way do.
 
 `ProductActionsUIAcceptanceTests` is flaky — it failed once and passed on three
 further runs, including one against the committed tree with every change
 stashed. Not caused by this work, but worth knowing about.
+
+Two views could not be snapshotted as they stand. `ProductCardRowView` renders
+three asynchronously loaded images behind spinners, and three spinners land on a
+different frame of the animation every run; the single-card case is stable, so
+the row is covered by two card states instead. That is a fact about the view
+rather than about the tool: a view whose appearance cannot be pinned cannot be
+regression-tested.

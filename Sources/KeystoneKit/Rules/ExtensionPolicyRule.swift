@@ -22,7 +22,7 @@ public struct ExtensionPolicyRule: Rule {
         var violations: [Violation] = []
 
         for file in context.files {
-            guard let role = file.role, role != .tests else { continue }
+            guard let role = file.role, !role.isTestFacing else { continue }
 
             for declaration in file.facts.extensions {
                 // Declaring a conformance. Swift offers no other way to adopt a

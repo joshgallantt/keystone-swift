@@ -93,7 +93,10 @@ public enum Presets {
         roles[Role.testSupport.rawValue] = RoleDefinition(
             description: "Doubles, drivers and builders shared between test targets.",
             paths: paths[.testSupport] ?? [],
-            mayDependOn: [Role.domain.rawValue, Role.library.rawValue],
+            // Anything, because a double has to see whatever it stands in for —
+            // a screen's stub needs the screen's protocols. The constraint that
+            // matters here runs the other way: who may see *this*.
+            mayDependOn: ["*"],
             // The point of the role. SwiftPM cannot share a test target across
             // packages, so shared test code has to be an ordinary module — and
             // an ordinary module can be linked by anything, including the app.
