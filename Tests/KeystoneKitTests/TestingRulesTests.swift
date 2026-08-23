@@ -96,8 +96,8 @@ struct TestDoubleRuleTests {
         #expect(try fixture.check().erroringRules.contains("doubles-live-in-support"))
     }
 
-    @Test("two doubles sharing a name are refused, wherever they are")
-    func doubleNamesMustBeUnique() throws {
+    @Test("two doubles sharing a visible name are reported")
+    func duplicateVisibleDoublesAreReported() throws {
         let fixture = try Fixture.load("CleanApp")
         defer { fixture.destroy() }
 
@@ -107,7 +107,36 @@ struct TestDoubleRuleTests {
         }
         """)
 
-        #expect(try fixture.check().erroringRules.contains("doubles-are-uniquely-named"))
+        let result = try fixture.check()
+        // Never an error: Swift already refuses two of a name in one module, so
+        // every duplicate this can find is in another module and cannot collide.
+        #expect(result.warningRules.contains("doubles-are-uniquely-named"))
+        #expect(!result.erroringRules.contains("doubles-are-uniquely-named"))
+        #expect(result.warnings.contains { $0.rule == "doubles-are-uniquely-named"
+            && $0.summary.contains("is declared 2 times") })
+    }
+
+    @Test("file-private copies are named as repetition rather than as a name clash")
+    func duplicatePrivateDoublesReadDifferently() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        // Nothing can collide: each copy is invisible outside its own file, in
+        // its own module. What is left is the same double written twice.
+        try fixture.write("Component/Catalog/Tests/CatalogUnitTests/Support/Doubles.swift", """
+        private struct StubClock {
+            let now = 0
+        }
+        """)
+        try fixture.write("Component/Catalog/Tests/CatalogAcceptanceTests/Support/Clock.swift", """
+        private struct StubClock {
+            let now = 0
+        }
+        """)
+
+        let found = try fixture.check().warnings.filter { $0.rule == "doubles-are-uniquely-named" }
+        #expect(found.contains { $0.summary.contains("written 2 times over, each one file-private") })
+        #expect(found.contains { $0.fix?.contains("not a naming problem but a repetition one") == true })
     }
 }
 

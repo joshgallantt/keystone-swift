@@ -7,13 +7,22 @@ import Foundation
 /// expects, a fake works. Keeping the kind in the name is not decoration — it
 /// tells the reader whether the test that follows verifies state or behaviour.
 ///
-/// Duplicate names are a separate problem. Two `StubCatalog`s in one repository
-/// look interchangeable in a review and are not, and the second one exists
-/// because whoever wrote it could not find the first.
+/// Duplicate names are a separate problem, and a milder one than it first
+/// looks. Swift already refuses two of the same name in one module, so every
+/// duplicate this can find is in a different module and cannot collide. What is
+/// left is a question of reading: two visible `StubCatalog`s look like the same
+/// thing until you check. When every copy is file-private the confusion is not
+/// even possible — but ten identical private stubs still means the same double
+/// was written ten times, which is worth saying in different words.
+///
+/// A warning either way. Neither case can break a build, and calling repetition
+/// an error is how a tool teaches people to stop reading its output.
 public struct TestDoubleRule: Rule {
     public let identifier = "doubles-live-in-support"
     public var emittedIdentifiers: [String] { [identifier, "doubles-are-uniquely-named"] }
     public let defaultSeverity: Severity = .error
+    /// Repetition is never a correctness problem, so it never blocks.
+    static let duplicateSeverity: Severity = .warning
     public var needsWholeProject: Bool { true }
 
     public init() {}
@@ -23,12 +32,14 @@ public struct TestDoubleRule: Rule {
         guard !tests.isEmpty else { return [] }
 
         var violations: [Violation] = []
-        var byName: [String: [(file: String, line: Int)]] = [:]
+        var byName: [String: [(file: String, line: Int, visible: Bool)]] = [:]
 
         for file in context.files where file.role == .tests {
             for declaration in file.facts.declarations
             where declaration.isTopLevel && declaration.isNominalType && tests.isDouble(declaration.name) {
-                byName[declaration.name, default: []].append((file.path, declaration.line))
+                byName[declaration.name, default: []].append(
+                    (file.path, declaration.line, declaration.accessLevel > .fileprivate)
+                )
 
                 guard !tests.isSupport(file.path) else { continue }
                 violations.append(
@@ -53,17 +64,29 @@ public struct TestDoubleRule: Rule {
             let sites = byName[name]!.sorted { $0.file < $1.file }
             guard sites.count > 1 else { continue }
             let others = sites.dropFirst().map(\.file).joined(separator: ", ")
+            let anyVisible = sites.contains { $0.visible }
+
             violations.append(
                 Violation(
                     rule: "doubles-are-uniquely-named",
-                    severity: defaultSeverity,
+                    severity: TestDoubleRule.duplicateSeverity,
                     file: sites[0].file,
                     line: sites[0].line,
-                    summary: "`\(name)` is declared \(sites.count) times, also in \(others)",
-                    fix: "Give each one a name that says which collaborator it stands in for, or keep one "
-                        + "and share it. Two doubles with the same name read as the same thing in a review "
-                        + "and behave differently in the run, which is the most expensive kind of "
-                        + "disagreement a test suite can contain.",
+                    summary: anyVisible
+                        ? "`\(name)` is declared \(sites.count) times, also in \(others)"
+                        : "`\(name)` is written \(sites.count) times over, each one file-private, also in "
+                            + "\(others)",
+                    fix: anyVisible
+                        ? "Give each a name saying which collaborator it stands in for, or keep one and "
+                            + "share it. Two doubles with the same name read as the same thing until "
+                            + "somebody checks, and the second one usually exists because whoever wrote it "
+                            + "could not find the first."
+                        : "Nothing can collide here — each copy is private to its own file, in its own "
+                            + "module — so this is not a naming problem but a repetition one. The same "
+                            + "double has been written \(sites.count) times, which means these suites share "
+                            + "a need that nothing in the project expresses. Either accept the copies as "
+                            + "the price of keeping the test targets independent, which is a reasonable "
+                            + "trade, or give that need a home they can all depend on.",
                     source: Sources.testDoubles
                 )
             )
