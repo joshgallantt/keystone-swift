@@ -75,8 +75,22 @@ public struct ClaudeHook: Sendable {
 
         let cwd = Paths.canonical((json["cwd"] as? String) ?? defaultRoot)
         let event = (json["hook_event_name"] as? String) ?? ""
+        let input = (json["tool_input"] as? [String: Any]) ?? [:]
 
-        guard let configurationPath = ConfigurationLoader.discover(from: cwd),
+        // The project is the one containing the file being written, which is
+        // not always the one the agent was started in. Searching only upward
+        // from the working directory meant a session opened above a project —
+        // or anywhere in a monorepo — found no manifest and allowed every
+        // write in silence, which is the failure this tool exists to prevent
+        // and the hardest one to notice, since a hook that permits everything
+        // looks exactly like a codebase with no violations.
+        let file = (input["file_path"] as? String).map {
+            $0.hasPrefix("/") ? Paths.canonical($0) : Paths.absolute($0, in: cwd)
+        }
+        let origin = file.map(Paths.directory(of:)) ?? cwd
+
+        guard let configurationPath = ConfigurationLoader.discover(from: origin)
+                ?? ConfigurationLoader.discover(from: cwd),
               let configuration = try? ConfigurationLoader.load(at: configurationPath) else {
             return .allow
         }
@@ -88,11 +102,16 @@ public struct ClaudeHook: Sendable {
         case "Stop", "SubagentStop":
             return closeOut(root: root, configuration: configuration)
         default:
-            return beforeTool(json: json, root: root, configuration: configuration)
+            return beforeTool(json: json, file: file, root: root, configuration: configuration)
         }
     }
 
-    private func beforeTool(json: [String: Any], root: String, configuration: Configuration) -> HookResponse {
+    private func beforeTool(
+        json: [String: Any],
+        file: String?,
+        root: String,
+        configuration: Configuration
+    ) -> HookResponse {
         let tool = (json["tool_name"] as? String) ?? ""
         let input = (json["tool_input"] as? [String: Any]) ?? [:]
 
@@ -108,11 +127,7 @@ public struct ClaudeHook: Sendable {
             )
         }
 
-        guard let filePath = input["file_path"] as? String, filePath.hasSuffix(".swift") else {
-            return .allow
-        }
-
-        let absolute = filePath.hasPrefix("/") ? filePath : Paths.absolute(filePath, in: root)
+        guard let absolute = file, absolute.hasSuffix(".swift") else { return .allow }
         guard let content = resolveContent(tool: tool, input: input, absolutePath: absolute) else {
             return .allow
         }

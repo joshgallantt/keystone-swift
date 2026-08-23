@@ -203,6 +203,38 @@ struct ClaudeHookTests {
         }
     }
 
+    @Test("the project is found from the file being written, not from the working directory")
+    func theProjectIsFoundFromTheFile() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        // An agent started above the project, or anywhere in a monorepo, has a
+        // working directory that contains no manifest. Searching only upward
+        // from there found nothing and allowed every write in silence — the
+        // worst shape of failure this tool has, because a hook that permits
+        // everything is indistinguishable from a codebase with no violations.
+        let elsewhere = Paths.directory(of: fixture.root)
+
+        let response = hook.respond(
+            to: payload([
+                "cwd": elsewhere,
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Write",
+                "tool_input": [
+                    "file_path": Paths.join(fixture.root, "Component/Catalog/Sources/Domain/Model/Bad.swift"),
+                    "content": "import SwiftUI\n\npublic struct Bad {}\n"
+                ]
+            ]),
+            defaultRoot: elsewhere
+        )
+
+        guard case .deny(let reason) = response else {
+            Issue.record("expected deny, got \(response)")
+            return
+        }
+        #expect(reason.contains("SwiftUI"))
+    }
+
     @Test("anything the hook cannot understand is allowed through")
     func doubtAllows() throws {
         let fixture = try Fixture.load("CleanApp")
