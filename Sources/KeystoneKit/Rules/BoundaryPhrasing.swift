@@ -1,0 +1,63 @@
+import Foundation
+
+/// The sentences boundary rules share.
+///
+/// Wording is part of the product here. Every message has to work for a reader
+/// who has not read the architecture yet — an agent starting a fresh session,
+/// or someone three weeks into a codebase — so each one names the layer, what
+/// it may reach instead, and where the code should go. A message that only says
+/// "not allowed" gets worked around; one that says where to put it gets obeyed.
+public enum BoundaryPhrasing {
+    /// What a layer is permitted to reach, as prose.
+    public static func permittedTargets(_ definition: RoleDefinition) -> String {
+        if definition.dependsOnAnything { return "anything" }
+        let allowed = definition.mayDependOn.sorted()
+        switch allowed.count {
+        case 0: return "nothing"
+        case 1: return "`\(allowed[0])`"
+        case 2: return "`\(allowed[0])` and `\(allowed[1])`"
+        default:
+            let head = allowed.dropLast().map { "`\($0)`" }.joined(separator: ", ")
+            return "\(head) and `\(allowed.last!)`"
+        }
+    }
+
+    /// The instruction given when a layer reached past what it is allowed.
+    /// Falls back to a general statement of the inversion when the
+    /// configuration has not written a specific one.
+    public static func invert(
+        role: Role,
+        definition: RoleDefinition,
+        towards other: Role,
+        file: String,
+        advisor: DestinationAdvisor
+    ) -> String {
+        if let reason = definition.reason { return reason }
+
+        var lines = [
+            "`\(role)` may depend on \(permittedTargets(definition)), and `\(other)` is not among them."
+        ]
+
+        if definition.mayDependOn.isEmpty {
+            lines.append(
+                "Declare what you need as a protocol here, in `\(role)`, and let a layer that may see "
+                + "both supply the implementation. The dependency then points inward, which is the whole rule."
+            )
+        } else {
+            lines.append(
+                "Depend on a protocol declared in \(permittedTargets(definition)) instead, and let the "
+                + "composition root decide which concrete type satisfies it."
+            )
+        }
+
+        if let destination = advisor.directory(for: other, movingFrom: file) {
+            lines.append("The implementation belongs in \(destination), reached only through that protocol.")
+        }
+
+        return lines.joined(separator: " ")
+    }
+
+    public static func packageOf(_ module: Module?) -> String? {
+        module?.packageDirectory
+    }
+}
