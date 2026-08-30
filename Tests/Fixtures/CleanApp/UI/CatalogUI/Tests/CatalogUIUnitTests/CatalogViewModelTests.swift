@@ -1,3 +1,4 @@
+import CatalogTestSupport
 import Testing
 @testable import CatalogUI
 

@@ -1,3 +1,4 @@
+import CatalogTestSupport
 import SnapshotTesting
 import SwiftUI
 import Testing
@@ -8,7 +9,7 @@ import Testing
 @MainActor
 @Test("the catalogue list renders a row for every item")
 func catalogListRendersEveryRow() {
-    let view = CatalogListView(model: CatalogViewModel(browseCatalog: StubPopulatedCatalog()))
+    let view = CatalogListView(model: CatalogViewModel(browseCatalog: StubBrowseCatalog(returning: ["Kettle", "Toaster"])))
 
     assertSnapshot(of: view, as: .image(layout: .device(config: .iPhone13)))
 }

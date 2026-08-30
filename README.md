@@ -176,6 +176,7 @@ the other combination.
 | `tests-assert-something` | A file in a tier declares at least one |
 | `doubles-live-in-support` | `Stub*`/`Spy*`/`Mock*`/`Fake*`/`Dummy*` outside `Support/` |
 | `doubles-are-uniquely-named` | Two doubles sharing a name across the repository |
+| `doubles-live-with-their-protocol` | A double written by a package that calls a protocol rather than the one that declares it *(warning)* |
 | `acceptance-vocabulary` | An acceptance test naming a type the data layer declared |
 | `test-names-read-as-prose` | A business-facing test named as an identifier |
 | `tier-required` | A package that owes a tier and has none |
@@ -248,6 +249,20 @@ Doubles carry their kind in the name, from Meszaros' *xUnit Test Patterns* by wa
 Fowler's [Mocks Aren't Stubs](https://martinfowler.com/articles/mocksArentStubs.html) —
 a `Stub` answers, a `Spy` records, a `Mock` expects, a `Fake` works. The kind tells the
 reader whether the test verifies state or behaviour.
+
+**And a double belongs to whoever declares the protocol**, published from that package as
+a `<Package>TestSupport` product. This is the rule that stops doubles multiplying: when
+callers write their own, one protocol collects a stub per consumer, each drifting from
+the real behaviour on its own schedule while every suite goes on passing. It is the
+argument in *Software Engineering at Google* (Winters, Manshreck & Wright, Ch. 13) for the
+API's owner writing the fake, and the Swift ecosystem does it structurally —
+[swift-nio](https://github.com/apple/swift-nio) ships `NIOEmbedded` beside the protocols
+it doubles, and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies)
+puts `testValue` in the same declaration as the interface.
+
+The rule stands down in one case: when moving the double would turn a dependency around.
+A fake of a library's protocol that is built out of one component's types cannot go and
+live in the library, because the library would have to learn about the component.
 
 **On Cucumber.** The discipline, not the tooling. Gherkin runners for Swift are dated or
 unmaintained, and buy `.feature` files at the cost of an indirection between the sentence

@@ -6,6 +6,7 @@ let package = Package(
     products: [
         .library(name: "Catalog", targets: ["Catalog"]),
         .library(name: "CatalogData", targets: ["CatalogData"]),
+        .library(name: "CatalogTestSupport", targets: ["CatalogTestSupport"]),
         .library(name: "CatalogDI", targets: ["CatalogDI"])
     ],
     dependencies: [
@@ -15,15 +16,20 @@ let package = Package(
         .target(
             name: "Catalog",
             path: "Sources",
-            exclude: ["Data", "DI"],
+            exclude: ["Data", "DI", "TestSupport"],
             sources: ["Domain"]
         ),
         .target(
             name: "CatalogData",
             dependencies: ["Catalog", .product(name: "Networking", package: "Networking")],
             path: "Sources",
-            exclude: ["Domain", "DI"],
+            exclude: ["Domain", "DI", "TestSupport"],
             sources: ["Data"]
+        ),
+        .target(
+            name: "CatalogTestSupport",
+            dependencies: ["Catalog"],
+            path: "Sources/TestSupport"
         ),
         .target(
             name: "CatalogDI",

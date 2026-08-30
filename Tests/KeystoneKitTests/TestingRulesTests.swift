@@ -101,8 +101,10 @@ struct TestDoubleRuleTests {
         let fixture = try Fixture.load("CleanApp")
         defer { fixture.destroy() }
 
+        // A second copy of a double the shared module already publishes, which
+        // is what happens when a suite writes its own rather than importing one.
         try fixture.write("Component/Catalog/Tests/CatalogAcceptanceTests/Support/More.swift", """
-        struct StubPopulatedCatalog {
+        struct StubBrowseCatalog {
             let items: [String] = []
         }
         """)

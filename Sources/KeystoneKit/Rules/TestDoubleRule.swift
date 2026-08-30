@@ -38,14 +38,22 @@ public struct TestDoubleRule: Rule {
         var violations: [Violation] = []
         var byName: [String: [(file: String, line: Int, visible: Bool)]] = [:]
 
-        for file in context.files where file.role == .tests {
+        // Both roles. Filtering on `.tests` alone is how this rule went blind:
+        // the moment a project took the advice and moved its doubles into a
+        // shared module, they stopped being test files and the check for
+        // duplicates stopped seeing them. Three duplicates then accumulated in
+        // silence under a clean report, which is worse than never having had
+        // the rule.
+        for file in context.files where file.role?.isTestFacing == true {
             for declaration in file.facts.declarations
             where declaration.isTopLevel && declaration.isNominalType && tests.isDouble(declaration.name) {
                 byName[declaration.name, default: []].append(
                     (file.path, declaration.line, declaration.accessLevel > .fileprivate)
                 )
 
-                guard !tests.isSupport(file.path) else { continue }
+                // Already in a shared module, which is a stronger form of the
+                // same thing this rule asks for.
+                guard file.role != .testSupport, !tests.isSupport(file.path) else { continue }
                 violations.append(
                     Violation(
                         rule: identifier,

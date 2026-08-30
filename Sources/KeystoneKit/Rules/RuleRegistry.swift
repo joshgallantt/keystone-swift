@@ -26,6 +26,7 @@ public enum RuleRegistry {
         TestTierRule(),
         TestSupportRule(),
         TestDoubleRule(),
+        DoubleOwnershipRule(),
         AcceptanceVocabularyRule(),
         TestNamingRule(),
         SharedFixtureRule(),

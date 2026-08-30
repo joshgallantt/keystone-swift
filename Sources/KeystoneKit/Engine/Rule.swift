@@ -199,6 +199,8 @@ public enum Sources {
         "Robert C. Martin, Clean Architecture (2017), Ch. 28 — The Test Boundary."
     public static let testDoubles =
         "Gerard Meszaros, xUnit Test Patterns (2007) — Test Double; Martin Fowler, Mocks Aren't Stubs (2007)."
+    public static let doubleOwnership =
+        "Winters, Manshreck & Wright, Software Engineering at Google (2020), Ch. 13 — Test Doubles, on API owners writing fakes."
     public static let testDataBuilder =
         "Freeman & Pryce, Growing Object-Oriented Software, Guided by Tests (2009), Ch. 22 — Constructing Complex Test Data."
     public static let acceptanceTests =

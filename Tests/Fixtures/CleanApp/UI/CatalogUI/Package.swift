@@ -24,12 +24,14 @@ let package = Package(
         ),
         .testTarget(
             name: "CatalogUIUnitTests",
-            dependencies: ["CatalogUI", .product(name: "Catalog", package: "Catalog")],
+            dependencies: [
+                .product(name: "CatalogTestSupport", package: "Catalog"),"CatalogUI", .product(name: "Catalog", package: "Catalog")],
             path: "Tests/CatalogUIUnitTests"
         ),
         .testTarget(
             name: "CatalogUISnapshotTests",
             dependencies: [
+                .product(name: "CatalogTestSupport", package: "Catalog"),
                 "CatalogUI",
                 .product(name: "Catalog", package: "Catalog"),
                 .product(name: "SnapshotTesting", package: "swift-snapshot-testing")
