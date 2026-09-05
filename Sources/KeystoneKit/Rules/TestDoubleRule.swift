@@ -1,35 +1,32 @@
 import Foundation
 
-/// Test doubles live in `Support/`, and no two of them share a name.
+/// No two test doubles share a name.
 ///
-/// The prefixes come from Meszaros' taxonomy, which Fowler's *Mocks Aren't
-/// Stubs* made the common vocabulary: a stub answers, a spy records, a mock
-/// expects, a fake works. Keeping the kind in the name is not decoration — it
-/// tells the reader whether the test that follows verifies state or behaviour.
+/// A milder problem than it first looks. Swift already refuses two of the same
+/// name in one module, so every duplicate this can find is in a different module
+/// and cannot collide. What is left is a question of reading: two visible
+/// `StubCatalog`s look like the same thing until you check. When every copy is
+/// file-private the confusion is not even possible — but ten identical private
+/// stubs still means the same double was written ten times, which is worth
+/// saying in different words.
 ///
-/// Duplicate names are a separate problem, and a milder one than it first
-/// looks. Swift already refuses two of the same name in one module, so every
-/// duplicate this can find is in a different module and cannot collide. What is
-/// left is a question of reading: two visible `StubCatalog`s look like the same
-/// thing until you check. When every copy is file-private the confusion is not
-/// even possible — but ten identical private stubs still means the same double
-/// was written ten times, which is worth saying in different words.
+/// A warning either way. Repetition can never break a build, and calling it an
+/// error is how a tool teaches people to stop reading its output.
 ///
-/// A warning either way. Neither case can break a build, and calling repetition
-/// an error is how a tool teaches people to stop reading its output.
+/// This rule used to also require every double to live in a directory called
+/// `Support/`, which was one folder name taken from one project and asserted
+/// over everyone else's. It produced 705 findings across eight of thirty-two
+/// apps, and the files it named were already properly isolated — in `Tests/Mocks/`,
+/// `Tests/MockUseCases/`, `Tests/Doubles/`. A double kept apart from the suite
+/// that uses it satisfies the reason the rule existed; which word the directory
+/// uses for "apart" is not something a tool can be right about.
 public struct TestDoubleRule: Rule {
-    public let identifier = "doubles-live-in-support"
-    public var emittedIdentifiers: [String] { [identifier, "doubles-are-uniquely-named"] }
-    public let defaultSeverity: Severity = .error
+    public let identifier = "doubles-are-uniquely-named"
     /// Repetition is never a correctness problem, so it never blocks.
-    static let duplicateSeverity: Severity = .warning
+    public let defaultSeverity: Severity = .warning
     public var needsWholeProject: Bool { true }
 
     public init() {}
-
-    public func defaultSeverity(for identifier: String) -> Severity {
-        identifier == "doubles-are-uniquely-named" ? TestDoubleRule.duplicateSeverity : defaultSeverity
-    }
 
     public func evaluate(_ context: RuleContext) -> [Violation] {
         let tests = context.configuration.tests
@@ -41,33 +38,12 @@ public struct TestDoubleRule: Rule {
         // Both roles. Filtering on `.tests` alone is how this rule went blind:
         // the moment a project took the advice and moved its doubles into a
         // shared module, they stopped being test files and the check for
-        // duplicates stopped seeing them. Three duplicates then accumulated in
-        // silence under a clean report, which is worse than never having had
-        // the rule.
+        // duplicates stopped seeing them.
         for file in context.files where file.role?.isTestFacing == true {
             for declaration in file.facts.declarations
             where declaration.isTopLevel && declaration.isNominalType && tests.isDouble(declaration.name) {
                 byName[declaration.name, default: []].append(
                     (file.path, declaration.line, declaration.accessLevel > .fileprivate)
-                )
-
-                // Already in a shared module, which is a stronger form of the
-                // same thing this rule asks for.
-                guard file.role != .testSupport, !tests.isSupport(file.path) else { continue }
-                violations.append(
-                    Violation(
-                        rule: identifier,
-                        severity: defaultSeverity,
-                        file: file.path,
-                        line: declaration.line,
-                        summary: "`\(declaration.name)` is a test double declared outside "
-                            + "`\(tests.supportDirectory)/`",
-                        fix: "Move it to `\(tests.supportDirectory)/` beside the suite that uses it. Doubles "
-                            + "declared among the tests get copied rather than found, which is how a "
-                            + "repository ends up with four stubs for the same collaborator, each slightly "
-                            + "different.",
-                        source: Sources.testDoubles
-                    )
                 )
             }
         }
@@ -80,8 +56,8 @@ public struct TestDoubleRule: Rule {
 
             violations.append(
                 Violation(
-                    rule: "doubles-are-uniquely-named",
-                    severity: TestDoubleRule.duplicateSeverity,
+                    rule: identifier,
+                    severity: defaultSeverity,
                     file: sites[0].file,
                     line: sites[0].line,
                     summary: anyVisible

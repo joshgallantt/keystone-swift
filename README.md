@@ -165,23 +165,17 @@ the other combination.
 | --- | --- |
 | `declaration-placement` | `*UseCase`, `*Repository`, `*DTO`, `*ViewModel`, `*View` in the wrong layer |
 | `extension-boundary` | One layer reopening another layer's types |
-| `no-extensions` | An extension that neither declares a conformance, extends a protocol, nor carries a constraint |
 
 **Testing** — errors, except where noted
 
 | Rule | What it checks |
 | --- | --- |
-| `test-tiers` | Every test file belongs to a declared tier |
 | `support-separation` | `Support/` declares no tests |
 | `tests-assert-something` | A file in a tier declares at least one |
-| `doubles-live-in-support` | `Stub*`/`Spy*`/`Mock*`/`Fake*`/`Dummy*` outside `Support/` |
 | `doubles-are-uniquely-named` | Two doubles sharing a name across the repository |
 | `doubles-live-with-their-protocol` | A double written by a package that calls a protocol rather than the one that declares it *(warning)* |
 | `acceptance-vocabulary` | An acceptance test naming a type the data layer declared |
 | `test-names-read-as-prose` | A business-facing test named as an identifier |
-| `tier-required` | A package that owes a tier and has none |
-| `test-pyramid` | A tier far narrower than the one above it — off until `tests.pyramid` names an order *(warning)* |
-| `no-shared-fixtures` | A file of shared test data *(warning)* |
 | `snapshots-are-committed` | A snapshot suite with nothing recorded *(warning)* |
 
 **Warnings**
@@ -192,7 +186,6 @@ the other combination.
 | `imports-are-declared` | A module imported but reached only transitively |
 | `contract-before-implementation` | A `Default*` or `*Impl` that implements nothing |
 | `no-shared-singletons` | A dependency reached for rather than passed in |
-| `no-todo` | Work recorded where nobody will look for it |
 | `unclassified-files` | A file no layer claims, and therefore no rule examined |
 
 That last one matters more than it looks. Silence is every architecture checker's
@@ -270,14 +263,6 @@ keystone-swift can *enforce* the rest: prose names, and nothing from the data la
 named in the suite. A Gherkin runner would happily execute a feature file full of
 `FakeCatalog`.
 
-**On the pyramid.** The `test-pyramid` rule is off unless you name an order, because
-counting tests only stands in for the thing the pyramid is about — cost and scope — when
-the tiers actually differ in cost. An acceptance suite driven through a testing API
-against in-memory fakes does not: it is a mid-pyramid service test phrased in the
-business's language, which is Vocke's point in
-[The Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html)
-that acceptance testing is a *purpose* rather than a level. Name the order if your tiers
-really do differ — one that drives a simulator, or a real service.
 
 **On snapshots.** Apple ships none — not in Swift Testing, not in XCTest. The standard is
 [pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing),

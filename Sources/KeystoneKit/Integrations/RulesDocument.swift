@@ -124,9 +124,6 @@ public enum RulesDocument {
             out.append("### `\(tier.name)`")
             out.append("")
             out.append("- **Lives in** " + tier.paths.map { "`\($0)`" }.joined(separator: ", "))
-            if !tier.requiredFor.isEmpty {
-                out.append("- **Required of** " + tier.requiredFor.map(describe).joined(separator: "; "))
-            }
             if tier.namesReadAsProse {
                 out.append("- **Named in sentences** — `@Test(\"Someone who … ends up with …\")`, "
                     + "not an identifier")
@@ -163,24 +160,9 @@ public enum RulesDocument {
         )
         out.append("")
 
-        if tests.pyramid.count > 1 {
-            out.append("Keep the base wider than what sits on it: "
-                + tests.pyramid.map { "`\($0)`" }.joined(separator: " ≥ ") + ".")
-            out.append("")
-        }
-
         return out
     }
 
-    static func describe(_ requirement: TierRequirement) -> String {
-        let roles = requirement.roles.map { "`\($0)`" }.joined(separator: ", ")
-        guard let declaring = requirement.declaring else { return "every \(roles) package" }
-        // Only the first letter: lowercasing the whole phrase turned
-        // `*ViewModel` into `*viewmodel`, which is a different type name.
-        let phrase = describe(declaring)
-        let opened = phrase.prefix(1).lowercased() + phrase.dropFirst()
-        return "a \(roles) package declaring \(opened)"
-    }
 
     static func describe(_ match: ConventionMatch) -> String {
         var parts: [String] = []

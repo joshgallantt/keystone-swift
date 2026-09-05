@@ -151,65 +151,20 @@ public enum Presets {
                 paths: ["**/Tests/*AcceptanceTests/**"],
                 namesReadAsProse: true,
                 mayNotReference: [.data],
-                requiredFor: [
-                    TierRequirement(
-                        roles: [.domain],
-                        reason: "Every component states its business rules as a journey somebody takes, "
-                            + "readable by a person who does not know the code."
-                    )
-                ],
                 reason: "Drive the feature through this tier's own driver — the role objects in Support/ — "
                     + "so the feature can be rearranged underneath the suite without touching it. The "
                     + "driver may name concrete types; the tests may not."
             ),
             TestTier(
                 name: "unit",
-                paths: ["**/Tests/*UnitTests/**"],
-                requiredFor: [
-                    TierRequirement(roles: [.domain]),
-                    TierRequirement(
-                        roles: [.presentation],
-                        declaring: ConventionMatch(nameSuffix: "ViewModel", kinds: [.struct, .class, .actor]),
-                        reason: "A feature package earns a unit tier by having a view model. One with "
-                            + "nothing but views has no unit for a unit test to name."
-                    )
-                ]
+                paths: ["**/Tests/*UnitTests/**"]
             ),
             TestTier(
                 name: "snapshot",
                 paths: ["**/Tests/*SnapshotTests/**"],
-                requiredFor: [
-                    TierRequirement(
-                        roles: [.presentation],
-                        declaring: ConventionMatch(nameSuffix: "View", kinds: [.struct]),
-                        reason: "A view is the one thing neither other tier can check. Apple ships no "
-                            + "snapshot testing, so this means pointfreeco/swift-snapshot-testing, which "
-                            + "has native Swift Testing support."
-                    )
-                ],
                 artifactDirectory: "__Snapshots__"
             )
-        ],
-        // Empty, so the shape rule is inert unless a project asks for it.
-        //
-        // The pyramid is about cost and scope — how much of the system a test
-        // exercises, how slow it is, how often it breaks for reasons unrelated
-        // to the change. This can only count files in directories, and counting
-        // is a proxy that holds solely when the tiers actually differ in cost.
-        //
-        // Here they do not. An acceptance suite driven through a testing API
-        // against in-memory fakes never touches a network or a database: it is
-        // a mid-pyramid service test phrased in the business's language, which
-        // is Vocke's point in *The Practical Test Pyramid* that acceptance
-        // testing is a purpose rather than a level. Counting it against the
-        // unit tier measured nothing, and said so loudly — on the reference
-        // project the classic order flagged six packages and the reverse order
-        // flagged ten, which is what a rule looks like when it is reading the
-        // wrong signal.
-        //
-        // A project whose tiers genuinely differ in cost — one that drives a
-        // simulator or a real service — states the order and gets the rule.
-        pyramid: []
+        ]
     )
 
     /// Conventions worth having in nearly every Swift codebase, because they

@@ -2,51 +2,6 @@ import Foundation
 import Testing
 @testable import KeystoneKit
 
-@Suite("Test tiers")
-struct TestTierRuleTests {
-    @Test("a project with no packages is still held to its tiers")
-    func aSingleTargetAppOwesTiersToo() throws {
-        let fixture = try Fixture.load("MonolithApp")
-        defer { fixture.destroy() }
-
-        // The case that needs these rules most: one Xcode target and some
-        // folders. Grouping by package would have skipped it entirely.
-        try fixture.remove("Tests")
-
-        let violations = try fixture.check().errors.filter { $0.rule == "tier-required" }
-        #expect(violations.contains { $0.summary.contains("`acceptance` suite") })
-        #expect(violations.contains { $0.summary.contains("`unit` suite") })
-        #expect(violations.first?.fix?.contains("Tests/AppUnitTests/") == true
-            || violations.last?.fix?.contains("Tests/AppUnitTests/") == true)
-    }
-
-    @Test("a package with views owes a snapshot suite, and one without does not")
-    func snapshotTiersAreEarnedByHavingViews() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.remove("UI/CatalogUI/Tests/CatalogUISnapshotTests")
-
-        let violations = try fixture.check().errors.filter { $0.rule == "tier-required" }
-        #expect(violations.contains { $0.summary.contains("`CatalogUI` has no `snapshot` suite") })
-        // The domain component has no views, so it is not asked for one.
-        #expect(!violations.contains { $0.summary.contains("`Catalog` has no `snapshot` suite") })
-    }
-
-    @Test("a test file in no declared tier is refused")
-    func strayTestTargetsAreRefused() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.write("Component/Catalog/Tests/CatalogIntegrationTests/WiringTests.swift", """
-        import Testing
-
-        @Test("something") func something() {}
-        """)
-
-        #expect(try fixture.check().erroringRules.contains("test-tiers"))
-    }
-}
 
 @Suite("Support separation")
 struct TestSupportRuleTests {
@@ -81,20 +36,6 @@ struct TestSupportRuleTests {
 
 @Suite("Test doubles")
 struct TestDoubleRuleTests {
-    @Test("a double declared among the tests is refused")
-    func doublesBelongInSupport() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.append("Component/Catalog/Tests/CatalogUnitTests/ItemTests.swift", """
-
-        struct SpyRecorder {
-            var calls = 0
-        }
-        """)
-
-        #expect(try fixture.check().erroringRules.contains("doubles-live-in-support"))
-    }
 
     @Test("two doubles sharing a visible name are reported")
     func duplicateVisibleDoublesAreReported() throws {
@@ -215,81 +156,10 @@ struct AcceptanceRuleTests {
 
 @Suite("Testing hygiene")
 struct TestingHygieneTests {
-    @Test("a file of shared test data is reported")
-    func sharedFixturesAreReported() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
 
-        try fixture.write("Component/Catalog/Tests/CatalogUnitTests/Support/Fixtures.swift", """
-        enum Fixtures {
-            static let name = "Kettle"
-        }
-        """)
 
-        #expect(try fixture.check().warningRules.contains("no-shared-fixtures"))
-    }
 
-    /// The rule is inert until a project names an order, because counting
-    /// tests only stands in for cost when the tiers differ in cost. A project
-    /// that says which tier is the base gets the check.
-    func withPyramid(_ order: [String], _ fixture: Fixture) throws {
-        var configuration = try fixture.configuration()
-        configuration.tests.pyramid = order
-        try ConfigurationLoader.write(
-            configuration,
-            to: Paths.join(fixture.root, ConfigurationLoader.fileName)
-        )
-    }
 
-    @Test("a tier far narrower than the one above it is reported, once an order is named")
-    func aLopsidedShapeIsReported() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try withPyramid(["acceptance", "unit"], fixture)
-        try fixture.write("Component/Catalog/Tests/CatalogUnitTests/MoreTests.swift", """
-        import Testing
-        @testable import Catalog
-
-        @Test("identity survives a round trip") func identitySurvives() {}
-        @Test("names are kept verbatim") func namesKept() {}
-        @Test("an empty name is still a name") func emptyNames() {}
-        @Test("two different items differ") func differentItems() {}
-        @Test("the same item matches itself") func sameItem() {}
-        """)
-
-        #expect(try fixture.check().warningRules.contains("test-pyramid"))
-    }
-
-    @Test("a tier merely a little smaller is left alone")
-    func aBalancedShapeIsNotReported() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try withPyramid(["acceptance", "unit"], fixture)
-
-        // Two against three is not a shape, it is two numbers that differ.
-        #expect(!(try fixture.check().warningRules.contains("test-pyramid")))
-    }
-
-    @Test("with no order named, the shape is not anybody's business")
-    func noOrderMeansNoOpinion() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.write("Component/Catalog/Tests/CatalogUnitTests/MoreTests.swift", """
-        import Testing
-        @testable import Catalog
-
-        @Test("identity survives a round trip") func identitySurvives() {}
-        @Test("names are kept verbatim") func namesKept() {}
-        @Test("an empty name is still a name") func emptyNames() {}
-        @Test("two different items differ") func differentItems() {}
-        @Test("the same item matches itself") func sameItem() {}
-        """)
-
-        #expect(!(try fixture.check().warningRules.contains("test-pyramid")))
-    }
 
     @Test("a snapshot suite with nothing recorded has never been able to fail")
     func uncommittedSnapshotsAreReported() throws {

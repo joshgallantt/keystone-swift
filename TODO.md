@@ -27,8 +27,7 @@
   rule is gone and the `consistency` section with it. A knob is a failure to
   infer: where a rule needs one to avoid a false positive, the rule is wrong,
   and the answer is fewer rules that need parameters rather than a general shape
-  for parameters. `test-pyramid`'s ratio stays in `tests` because a pyramid is a
-  ratio and there is nothing to infer it from.
+  for parameters. `test-pyramid` and its ratio are gone with the rest.
 
 ## Borrowed from SwiftLint, not yet done
 
@@ -52,11 +51,10 @@
 
 ## Overlap with SwiftLint
 
-Measured, not assumed: of 256 SwiftLint rules and 29 here, exactly one is the
-same rule — `todo` and `no-todo`. `no_grouping_extension` is a partial subset of
-`no-extensions`, catching only the same-file case. There is nothing worth
-delegating, and `no-todo` is the one rule to consider dropping in favour of
-SwiftLint's, which is better integrated.
+Measured, not assumed: of 256 SwiftLint rules and the rules here, there is now
+no overlap at all. The one shared rule was `todo`/`no-todo`, and
+`no_grouping_extension` partially subsumed `no-extensions`; both of ours are
+deleted, so the question of delegating to SwiftLint has answered itself.
 
 ## Unverified
 

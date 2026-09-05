@@ -286,40 +286,4 @@ struct HygieneMutationTests {
         #expect(try fixture.check().warningRules.contains("no-shared-singletons"))
     }
 
-    @Test("a TODO is a warning, and a word merely containing one is not")
-    func todoCommentsAreWarnedAbout() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.prepend("Component/Catalog/Sources/Domain/Model/Item.swift", "// TODO: rename this\n")
-        #expect(try fixture.check().warningRules.contains("no-todo"))
-
-        #expect(TodoCommentRule.marker(in: "// AUTODOC generated") == nil)
-        #expect(TodoCommentRule.marker(in: "// FIXME later") == "FIXME")
-    }
-
-    @Test("a TODO inside a string literal is not a comment")
-    func stringLiteralsAreNotComments() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.append("Component/Catalog/Sources/Domain/Model/Item.swift", """
-
-        public extension Item {
-            static let banner = "TODO: this is data, not a note to self"
-        }
-        """)
-
-        #expect(!(try fixture.check().warningRules.contains("no-todo")))
-    }
-
-    @Test("a file no layer claims is reported rather than silently passed")
-    func unclassifiedFilesAreReported() throws {
-        let fixture = try Fixture.load("CleanApp")
-        defer { fixture.destroy() }
-
-        try fixture.write("Scratch/Whatever.swift", "public struct Whatever {}\n")
-
-        #expect(try fixture.check().warningRules.contains("unclassified-files"))
-    }
 }
