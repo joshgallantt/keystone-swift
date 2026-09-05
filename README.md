@@ -188,7 +188,6 @@ the other combination.
 
 | Rule | What it reports |
 | --- | --- |
-| `peer-consistency` | What most sibling packages have and one does not |
 | `layer-vocabulary` | A domain protocol named for the wire — `*Client`, `*API`, `*Gateway` |
 | `imports-are-declared` | A module imported but reached only transitively |
 | `contract-before-implementation` | A `Default*` or `*Impl` that implements nothing |

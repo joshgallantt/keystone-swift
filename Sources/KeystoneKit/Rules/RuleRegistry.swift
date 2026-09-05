@@ -20,7 +20,6 @@ public enum RuleRegistry {
         UndeclaredImportRule(),
         ContractBeforeImplementationRule(),
         LayerVocabularyRule(),
-        PeerConsistencyRule(),
         SharedSingletonRule(),
         TodoCommentRule(),
         TestTierRule(),

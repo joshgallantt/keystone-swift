@@ -21,7 +21,6 @@ public struct Configuration: Sendable {
     /// turn on three rules and mean them, not turn off twenty-six and argue
     /// about each. Empty means every rule, which is what a new project wants.
     public var enabledRules: [String]
-    public var consistency: ConsistencySettings
     public var tests: TestsConfiguration
 
     public init(
@@ -35,7 +34,6 @@ public struct Configuration: Sendable {
         severities: [String: Severity] = [:],
         disabledRules: [String] = [],
         enabledRules: [String] = [],
-        consistency: ConsistencySettings = ConsistencySettings(),
         tests: TestsConfiguration = TestsConfiguration()
     ) {
         self.version = version
@@ -48,7 +46,6 @@ public struct Configuration: Sendable {
         self.severities = severities
         self.disabledRules = disabledRules
         self.enabledRules = enabledRules
-        self.consistency = consistency
         self.tests = tests
     }
 
@@ -247,72 +244,5 @@ public struct ExtensionBoundary: Sendable {
         self.from = from
         self.declaredIn = declaredIn
         self.reason = reason
-    }
-}
-
-
-/// How alike sibling modules are expected to be.
-///
-/// Not every convention in a codebase is written down. Most are held in the
-/// shape of the thing: nine components have a test fixture file and the tenth
-/// does not, and nobody decided that — it just never got added. Comparing peers
-/// against each other finds those, which a rule written in advance never could,
-/// because nobody knew the convention existed until it was broken.
-public struct ConsistencySettings: Sendable, Codable {
-    /// How many siblings a group needs before its shape means anything. Two
-    /// packages disagreeing is not a convention with an exception; it is two
-    /// packages.
-    public var minimumPeers: Int
-    /// The share of siblings that must have something before its absence
-    /// elsewhere is worth reporting.
-    public var threshold: Double
-    /// Paths never compared — build output, lockfiles, anything whose presence
-    /// is incidental rather than a decision.
-    public var ignore: [String]
-    /// Absences already accounted for. `Component/Money` exempts a package
-    /// entirely; `UI/SheetUI:Sources/UI/` exempts it from one expectation only.
-    ///
-    /// The second form matters more than it looks. A package can be a
-    /// legitimately different shape in one respect and genuinely deficient in
-    /// another — these three UI packages use a port layout rather than a
-    /// feature one, *and* have no tests at all — and exempting them wholesale
-    /// would file the second fact away behind the first.
-    ///
-    /// Distinct from `ignore`, which removes files from the comparison: do that
-    /// to a package and it appears to be missing everything, which is the
-    /// opposite of what was meant.
-    public var exempt: [String]
-    /// Why the exemptions above are there.
-    ///
-    /// Nothing reads these; `keystone-swift rules` prints them. An exemption
-    /// without a reason is indistinguishable from a rule somebody got tired of,
-    /// and the person who finds it in a year has no way to tell whether the
-    /// decision still holds.
-    public var notes: [String]
-
-    public init(
-        minimumPeers: Int = 3,
-        threshold: Double = 0.75,
-        ignore: [String] = ["**/*.resolved", "**/.DS_Store", "**/*.plist", "**/*.xcscheme"],
-        exempt: [String] = [],
-        notes: [String] = []
-    ) {
-        self.minimumPeers = minimumPeers
-        self.threshold = threshold
-        self.ignore = ignore
-        self.exempt = exempt
-        self.notes = notes
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let defaults = ConsistencySettings()
-        self.init(
-            minimumPeers: try container.decodeIfPresent(Int.self, forKey: .minimumPeers) ?? defaults.minimumPeers,
-            threshold: try container.decodeIfPresent(Double.self, forKey: .threshold) ?? defaults.threshold,
-            ignore: try container.decodeIfPresent([String].self, forKey: .ignore) ?? defaults.ignore,
-            exempt: try container.decodeIfPresent([String].self, forKey: .exempt) ?? [],
-            notes: try container.decodeIfPresent([String].self, forKey: .notes) ?? []
-        )
     }
 }

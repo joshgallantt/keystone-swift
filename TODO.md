@@ -21,10 +21,14 @@
 - ~~**`testSupport` role.**~~ Done, along with `visibleTo` — the inverse of
   `mayDependOn`, needed because the layer most in need of stopping is the
   composition root, which may depend on everything by definition.
-- **Per-rule options.** Rules take a severity but no parameters. `test-pyramid`
-  and `peer-consistency` now carry their own tolerances in `tests` and
-  `consistency`, but there is no general shape for it, so the next rule that
-  needs one will invent a third place to put it.
+- ~~**Per-rule options.**~~ Settled in the negative. `peer-consistency` carried
+  four of them — `minimumPeers`, `threshold`, `ignore`, `exempt` — and all four
+  existed to tune an argument from what sibling packages happen to have. The
+  rule is gone and the `consistency` section with it. A knob is a failure to
+  infer: where a rule needs one to avoid a false positive, the rule is wrong,
+  and the answer is fewer rules that need parameters rather than a general shape
+  for parameters. `test-pyramid`'s ratio stays in `tests` because a pyramid is a
+  ratio and there is nothing to infer it from.
 
 ## Borrowed from SwiftLint, not yet done
 
