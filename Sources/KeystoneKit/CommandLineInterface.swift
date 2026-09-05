@@ -14,6 +14,23 @@ public enum CommandLineInterface {
     public static func run(arguments: [String]) -> Int32 {
         let parsed = Arguments(arguments)
 
+        // Read before the command, because these are the two things a person
+        // types when they do not yet know what the commands are. They arrive as
+        // flags, never as the command word, so a `case "--help"` below can never
+        // be reached — and the empty command falls through to `check`, which is
+        // how `keystone-swift --help` came to silently scan whatever directory
+        // it was run from.
+        if parsed.has("help") || parsed.has("h") { Output.print(Help.text); return ExitCode.clean }
+        if parsed.has("version") || parsed.has("v") { Output.print(Version.current); return ExitCode.clean }
+
+        // A misspelled option is not a request to check the whole tree. The
+        // parser cannot tell `--projct` from a flag some command might read, so
+        // the interface says which options exist and refuses the rest.
+        if let unknown = parsed.unknownOptions.first {
+            Output.error("Unknown option `--\(unknown)`.\n\n\(Help.text)")
+            return ExitCode.undecidable
+        }
+
         switch parsed.command {
         case "init": return Commands.initialise(parsed)
         case "check", "": return Commands.check(parsed)
@@ -24,8 +41,8 @@ public enum CommandLineInterface {
         case "install": return Commands.install(parsed)
         case "uninstall": return Commands.uninstall(parsed)
         case "doctor": return Commands.doctor(parsed)
-        case "version", "--version", "-v": Output.print(Version.current); return ExitCode.clean
-        case "help", "--help", "-h": Output.print(Help.text); return ExitCode.clean
+        case "version": Output.print(Version.current); return ExitCode.clean
+        case "help": Output.print(Help.text); return ExitCode.clean
         default:
             Output.error("Unknown command `\(parsed.command)`.\n\n\(Help.text)")
             return ExitCode.undecidable
@@ -48,6 +65,14 @@ public struct Arguments: Sendable {
     /// flag can never silently swallow the argument after it.
     static let valued: Set<String> = [
         "root", "config", "since", "file", "width", "commit", "branch", "at", "reporter"
+    ]
+
+    /// Options that stand alone. Together with `valued` this is every option
+    /// the tool has, which is what lets an unrecognised one be refused rather
+    /// than ignored.
+    static let switches: Set<String> = [
+        "changed", "dry-run", "force", "include-accepted", "json", "list",
+        "no-colour", "staged", "user", "help", "h", "version", "v"
     ]
 
     public init(_ arguments: [String]) {
@@ -88,6 +113,14 @@ public struct Arguments: Sendable {
     }
 
     public func has(_ flag: String) -> Bool { flags.contains(flag) }
+
+    /// Options the tool does not recognise, in either form.
+    public var unknownOptions: [String] {
+        flags.union(values.keys)
+            .subtracting(Arguments.switches)
+            .subtracting(Arguments.valued)
+            .sorted()
+    }
     public func value(_ name: String) -> String? { values[name] }
 
     public var root: String {

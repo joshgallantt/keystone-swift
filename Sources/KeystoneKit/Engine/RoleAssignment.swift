@@ -48,9 +48,9 @@ public struct RoleAssignment: Sendable {
             }
         }
 
-        // Then what the directories call themselves.
+        // Then what the directories call themselves, in as many words.
         for file in swiftFiles where fileRoles[file] == nil {
-            guard let match = LayerVocabulary.match(forDirectory: Paths.directory(of: file)),
+            guard let match = LayerVocabulary.exactMatch(forDirectory: Paths.directory(of: file)),
                   known.contains(match.role.rawValue) else { continue }
             fileRoles[file] = match.role
         }
@@ -59,6 +59,28 @@ public struct RoleAssignment: Sendable {
         for file in swiftFiles {
             guard let module = graph.module(owning: file) else { continue }
             filesByModule[module.name, default: []].append(file)
+        }
+
+        // Then what the build system says the target is. A manifest declaring a
+        // `.testTarget`, or an Xcode target of kind app, is a fact the project
+        // states about itself; a folder whose name merely ends in `UI` is a
+        // guess about one path segment. The fact goes first. It did not, and an
+        // app called `ModularSwiftUI` had its own `AppDelegate` filed under
+        // presentation.
+        for file in swiftFiles where fileRoles[file] == nil {
+            guard let module = graph.module(owning: file) else { continue }
+            if module.kind.isTest, known.contains(Role.tests.rawValue) {
+                fileRoles[file] = .tests
+            } else if module.kind == .app, known.contains(Role.composition.rawValue) {
+                fileRoles[file] = .composition
+            }
+        }
+
+        // Only then the weakest reading of a name.
+        for file in swiftFiles where fileRoles[file] == nil {
+            guard let match = LayerVocabulary.suffixMatch(forDirectory: Paths.directory(of: file)),
+                  known.contains(match.role.rawValue) else { continue }
+            fileRoles[file] = match.role
         }
 
         var moduleRoles: [String: Role] = [:]

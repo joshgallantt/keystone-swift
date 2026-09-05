@@ -28,14 +28,18 @@ public enum LayerVocabulary {
                      "Container", "Containers", "Injection", "Wiring", "Main", "App",
                      "Application", "Bootstrap"] { table[word] = .composition }
 
-        for word in ["UI", "Presentation", "Views", "Screens", "Scenes",
-                     "ViewModels", "Presenters"] { table[word] = .presentation }
+        // Singular and plural both, because a project picks one and keeps to
+        // it. `Views/` was recognised and `View/` was not, so a module of
+        // SwiftUI screens fell through to whatever its siblings suggested.
+        for word in ["UI", "Presentation", "View", "Views", "Screen", "Screens",
+                     "Scene", "Scenes", "ViewModel", "ViewModels",
+                     "Presenter", "Presenters"] { table[word] = .presentation }
 
         for word in ["Data", "Persistence", "Infrastructure", "DTO", "DTOs",
                      "Remote", "Cache"] { table[word] = .data }
 
         for word in ["Domain", "Entities", "Entity", "UseCases", "UseCase",
-                     "Interactors", "Business", "Rules"] { table[word] = .domain }
+                     "Interactor", "Interactors", "Business", "Rules"] { table[word] = .domain }
 
         for word in ["Library", "Libraries", "Utilities", "Utils"] { table[word] = .library }
 
@@ -53,6 +57,12 @@ public enum LayerVocabulary {
     /// outward. `Sources/DI` beats the `UI/` folder above it, because the
     /// nearer name is the more considered one.
     public static func match(forDirectory directory: String) -> Match? {
+        exactMatch(forDirectory: directory) ?? suffixMatch(forDirectory: directory)
+    }
+
+    /// A directory that says its layer outright. Deliberate, so it outranks
+    /// everything except a path the project declared itself.
+    public static func exactMatch(forDirectory directory: String) -> Match? {
         let segments = directory.split(separator: "/").map(String.init)
 
         // A test anywhere in the path is a test, checked first and across the
@@ -64,9 +74,22 @@ public enum LayerVocabulary {
 
         for segment in segments.reversed() {
             if let role = byName[segment] { return Match(role: role, segment: segment) }
-            if let role = suffixRole(segment) { return Match(role: role, segment: segment) }
         }
         return nil
+    }
+
+    /// A directory that only *ends* in a layer word. The weakest signal there
+    /// is, and it applies to the nearest segment alone, because in SwiftPM that
+    /// is usually the module's own name — `Sources/AuthUIDI`.
+    ///
+    /// Ancestors are not read this way. A repository whose top folder is called
+    /// `ModularSwiftUI` had every file beneath it reading as presentation,
+    /// entities included, and renaming that one folder moved the whole tree to
+    /// `domain`. A name that far from a file is not a statement about it.
+    public static func suffixMatch(forDirectory directory: String) -> Match? {
+        guard let last = directory.split(separator: "/").map(String.init).last,
+              let role = suffixRole(last) else { return nil }
+        return Match(role: role, segment: last)
     }
 
     public static func role(forDirectory directory: String) -> Role? {
