@@ -190,9 +190,14 @@ struct SwiftSourceAnalyzerTests {
         let facts = analyzer.analyze(path: "F.swift", content: """
         extension Order {}
         extension Money.Currency {}
+        extension SwiftUI.View {}
         """)
 
-        #expect(facts.extensions.map(\.name) == ["Order", "Currency"].map { $0 == "Currency" ? "Money" : $0 })
+        // The rightmost component. `Money.Currency` reopens `Currency`, and the
+        // qualifier is the module it lives in — which is what this test's name
+        // has always said and what the assertion, written as a map onto
+        // `["Order", "Money"]`, quietly did not check.
+        #expect(facts.extensions.map(\.name) == ["Order", "Currency", "View"])
     }
 
     @Test("access level and conformances are recorded")

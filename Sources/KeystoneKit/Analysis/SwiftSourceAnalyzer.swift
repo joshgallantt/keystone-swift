@@ -125,7 +125,7 @@ private final class FactVisitor: SyntaxVisitor {
     }
 
     override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
-        if let name = FactVisitor.rootTypeName(node.extendedType) {
+        if let name = FactVisitor.declaredTypeName(node.extendedType) {
             extensions.append(
                 Declaration(
                     name: name,
@@ -133,7 +133,7 @@ private final class FactVisitor: SyntaxVisitor {
                     line: line(node),
                     accessLevel: FactVisitor.accessLevel(node.modifiers),
                     inheritedTypes: node.inheritanceClause?.inheritedTypes.compactMap {
-                        FactVisitor.rootTypeName($0.type)
+                        FactVisitor.declaredTypeName($0.type)
                     } ?? [],
                     isTopLevel: nestingDepth == 0,
                     isConstrained: node.genericWhereClause != nil
@@ -229,7 +229,7 @@ private final class FactVisitor: SyntaxVisitor {
                 kind: kind,
                 line: line(node),
                 accessLevel: FactVisitor.accessLevel(modifiers),
-                inheritedTypes: inheritance?.inheritedTypes.compactMap { FactVisitor.rootTypeName($0.type) } ?? [],
+                inheritedTypes: inheritance?.inheritedTypes.compactMap { FactVisitor.declaredTypeName($0.type) } ?? [],
                 isTopLevel: nestingDepth == 0
             )
         )
@@ -253,6 +253,24 @@ private final class FactVisitor: SyntaxVisitor {
 
     /// The leftmost identifier of a possibly-qualified type, so that
     /// `extension Money.Currency` is understood to reopen `Money`.
+    /// The type a qualified name actually denotes: the rightmost component.
+    ///
+    /// `rootTypeName` answers the opposite question — what a reference *mentions*
+    /// first — and for `SwiftUI.View` that is `SwiftUI`, which is a module. Used
+    /// for a declaration it produced `extension SwiftUI`, so a file extending
+    /// `SwiftUI.View` was reported as reopening a type called `SwiftUI`, and
+    /// `extension Mastodon.Status` as reopening `Mastodon`. Twenty-one of
+    /// `extension-boundary`'s twenty-one findings across thirty-two apps were
+    /// that mistake and nothing else.
+    static func declaredTypeName(_ type: TypeSyntax) -> String? {
+        if let member = type.as(MemberTypeSyntax.self) { return member.name.text }
+        if let optional = type.as(OptionalTypeSyntax.self) { return declaredTypeName(optional.wrappedType) }
+        if let implicit = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) { return declaredTypeName(implicit.wrappedType) }
+        if let attributed = type.as(AttributedTypeSyntax.self) { return declaredTypeName(attributed.baseType) }
+        if let some = type.as(SomeOrAnyTypeSyntax.self) { return declaredTypeName(some.constraint) }
+        return rootTypeName(type)
+    }
+
     static func rootTypeName(_ type: TypeSyntax) -> String? {
         if let identifier = type.as(IdentifierTypeSyntax.self) { return identifier.name.text }
         if let member = type.as(MemberTypeSyntax.self) { return rootTypeName(member.baseType) }

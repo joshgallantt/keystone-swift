@@ -57,7 +57,7 @@ public struct DeclarationPlacementRule: Rule {
 
     static func matches(_ declaration: Declaration, _ match: ConventionMatch) -> Bool {
         let hasCriterion = match.nameSuffix != nil || match.namePrefix != nil
-            || match.nameMatches != nil || match.kinds != nil
+            || match.nameMatches != nil || match.kinds != nil || match.conformsTo != nil
         guard hasCriterion else { return false }
 
         if let kinds = match.kinds, !kinds.contains(declaration.kind) { return false }
@@ -69,6 +69,9 @@ public struct DeclarationPlacementRule: Rule {
         }
         if let prefix = match.namePrefix {
             guard declaration.name.hasPrefix(prefix), declaration.name.count > prefix.count else { return false }
+        }
+        if let conformances = match.conformsTo {
+            guard !Set(declaration.inheritedTypes).isDisjoint(with: conformances) else { return false }
         }
         if let pattern = match.nameMatches {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }

@@ -261,7 +261,7 @@ public enum Presets {
         ),
         Convention(
             name: "views-live-in-presentation",
-            match: ConventionMatch(nameSuffix: "View", kinds: [.struct]),
+            match: ConventionMatch(nameSuffix: "View", kinds: [.struct], conformsTo: ["View"]),
             requireRole: [.presentation],
             // The composition root owns the app shell — a root view and the
             // model behind it are part of assembling the app, not a layer

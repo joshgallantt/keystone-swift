@@ -73,7 +73,13 @@ public struct SymbolIndex: Sendable {
     ) -> SymbolIndex {
         var entries: [Entry] = []
         for file in files {
-            for declaration in file.facts.declarations where declaration.isNominalType {
+            // Top-level only. A nested `enum Button` inside one view is not the
+            // same symbol as another module's `Button`, and indexing it made every
+            // reference to the common name resolve to whichever file happened to
+            // declare a nested one — which is where `type-reference-boundary`'s
+            // shadow findings came from.
+            for declaration in file.facts.declarations
+            where declaration.isNominalType && declaration.isTopLevel {
                 entries.append(
                     Entry(
                         name: declaration.name,

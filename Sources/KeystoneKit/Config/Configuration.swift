@@ -215,17 +215,28 @@ public struct ConventionMatch: Sendable {
     public var namePrefix: String?
     public var nameMatches: String?
     public var kinds: [DeclarationKind]?
+    /// A conformance the declaration must carry, so a convention can be about
+    /// what a type *is* rather than only what it is called.
+    ///
+    /// `views-live-in-presentation` matched every struct whose name ended in
+    /// `View` and asked nothing else, so a `CipherItemsView` state struct or a
+    /// `SettingsView` route enum was told to move to the presentation layer on
+    /// the strength of six letters. A SwiftUI view conforms to `View`; that is
+    /// the fact, and the suffix is a hint about it.
+    public var conformsTo: [String]?
 
     public init(
         nameSuffix: String? = nil,
         namePrefix: String? = nil,
         nameMatches: String? = nil,
-        kinds: [DeclarationKind]? = nil
+        kinds: [DeclarationKind]? = nil,
+        conformsTo: [String]? = nil
     ) {
         self.nameSuffix = nameSuffix
         self.namePrefix = namePrefix
         self.nameMatches = nameMatches
         self.kinds = kinds
+        self.conformsTo = conformsTo
     }
 }
 

@@ -124,7 +124,7 @@ extension Convention: Codable {
 
 extension ConventionMatch: Codable {
     private enum CodingKeys: String, CodingKey {
-        case nameSuffix, namePrefix, nameMatches, kinds
+        case nameSuffix, namePrefix, nameMatches, kinds, conformsTo
     }
 
     public init(from decoder: Decoder) throws {
@@ -133,7 +133,8 @@ extension ConventionMatch: Codable {
             nameSuffix: try container.decodeIfPresent(String.self, forKey: .nameSuffix),
             namePrefix: try container.decodeIfPresent(String.self, forKey: .namePrefix),
             nameMatches: try container.decodeIfPresent(String.self, forKey: .nameMatches),
-            kinds: try container.decodeIfPresent([DeclarationKind].self, forKey: .kinds)
+            kinds: try container.decodeIfPresent([DeclarationKind].self, forKey: .kinds),
+            conformsTo: try container.decodeIfPresent([String].self, forKey: .conformsTo)
         )
     }
 
@@ -143,6 +144,7 @@ extension ConventionMatch: Codable {
         try container.encodeIfPresent(namePrefix, forKey: .namePrefix)
         try container.encodeIfPresent(nameMatches, forKey: .nameMatches)
         try container.encodeIfPresent(kinds, forKey: .kinds)
+        try container.encodeIfPresent(conformsTo, forKey: .conformsTo)
     }
 }
 
