@@ -66,9 +66,16 @@ public struct FrameworkCatalog: Sendable {
             "Network", "CFNetwork", "MultipeerConnectivity", "NetworkExtension",
             "WatchConnectivity"
         ],
+        // Key material and attestation. A screen has no business with any of
+        // it, which is why `presentation` refuses the whole category — and why
+        // the category has to mean only that. `LocalAuthentication` and
+        // `AuthenticationServices` were in here and are not: a Face ID prompt
+        // and a Sign in with Apple button are views the system draws, so a
+        // screen reaching for them is right, not wrong. They sit in `system`
+        // with the rest of the device-facing frameworks, which the domain still
+        // refuses.
         crypto: [
-            "CryptoKit", "Security", "LocalAuthentication", "AuthenticationServices",
-            "DeviceCheck", "CommonCrypto", "CryptoTokenKit"
+            "CryptoKit", "Security", "DeviceCheck", "CommonCrypto", "CryptoTokenKit"
         ],
         media: [
             "AVFoundation", "AVKit", "CoreMedia", "CoreAudio", "AudioToolbox",
@@ -82,7 +89,8 @@ public struct FrameworkCatalog: Sendable {
             "Intents", "IntentsUI", "AppIntents", "CallKit", "Speech",
             "NaturalLanguage", "CoreML", "CreateML", "GameKit", "ExternalAccessory",
             "AdSupport", "AppTrackingTransparency", "SystemConfiguration",
-            "MachO", "IOKit", "ServiceManagement"
+            "MachO", "IOKit", "ServiceManagement",
+            "LocalAuthentication", "AuthenticationServices"
         ],
         testing: [
             "XCTest", "Testing", "SwiftUITesting"

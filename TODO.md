@@ -18,6 +18,18 @@
 
 ## Missing concepts
 
+- **A type made `public` only so a test can see it.** Measured over the sample:
+  2,643 test files, 89% of which already write `@testable import`. So a rule
+  *requiring* `@testable` would fire on the remaining 300, and most of those are
+  acceptance suites driving the public surface on purpose — it would push
+  projects the wrong way. The fault worth reporting is the opposite one: a type
+  widened from `internal` to `public` under test pressure, which is a production
+  API grown for a reason no production caller has. `SymbolIndex` now holds the
+  declarations and `SourceFacts.typeReferences` the uses, so the shape is
+  reachable: a `public` declaration in a production module whose only
+  out-of-module references are test files, where `@testable` would have done.
+  Needs measuring before it is written.
+
 - **Two placement implementations, and they now disagree.** `RoleAssignment`
   places files and modules for `check`, and reads file contents to do it.
   `RoleInference` does the same job for `init` and never parses anything, so
@@ -25,11 +37,16 @@
   confidently from their conformances. One of them has to go, and it is
   `RoleInference` — `Commands.initialise` should build a `RoleAssignment` the
   way `Checker` does.
-- **A mixed file is reported as nothing rather than as a mixture.**
-  `ContentMarkers.layers(in:)` returns every layer whose machinery a file is
-  built on, and `role(of:)` uses it only to abstain when there is more than one.
-  A file holding a screen and a store is a layering fault inside one file, and
-  the set is already computed — it wants a rule.
+- **Two targets sharing a name: the second is silently discarded.**
+  `ProjectScanner.buildGraph` keys modules by name, so the second target called
+  `Koober` — a second copy of the sample app in the same repository, under
+  another directory — never enters the graph, and its 24 files are owned by
+  nothing and reported as unclassified with no explanation. Swift module names
+  really are global, so one build cannot hold two; one *repository* holding two
+  projects can. The graph wants a key that is unique per project, and `edges`,
+  `moduleRoles` and `evidence` are all keyed by bare name today, so this is not
+  a one-line change. Until then a collision should at least be said out loud
+  rather than dropped.
 - **`sources:` subpaths are not source roots.** A SwiftPM target written as
   `path: "Sources", sources: ["AuthUIHost", "AuthUIDI"]` reports one root,
   `Sources`, so the three `*DI` modules in the reference project read as

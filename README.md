@@ -101,41 +101,75 @@ It reads these sources:
 This is the most important part of the tool. Every rule is only as correct as
 the layer that the tool gives to a file.
 
-The tool applies five tests, in this sequence. The first test that gives an
+The tool applies seven tests, in this sequence. The first test that gives an
 answer is the answer.
 
 1. **A path that the project declares.** The configuration file can name a path
    for a layer. This wins against all other evidence.
-2. **A directory that states its layer.** A directory with the name `Domain`
-   or `UI` shows a decision that somebody made. The tool reads the directory names
-   from the file outward. The nearest directory wins.
+2. **A path that says "test".** A test may be built out of whatever it tests, so
+   a driver that holds a fake store is still a test.
 3. **The kind of the target.** A manifest that declares a `.testTarget` states a
-   fact. An Xcode target of the kind "application" states a fact. A fact is
-   stronger than a name.
-4. **The end of a directory name.** A module with the name `AuthUIDI` carries
+   fact. So does an Xcode target of the kind "application" — but only where
+   there is something to compose: see below.
+4. **What the file declares itself to be.** A type that conforms to `View`, an
+   `@main`, a subclass of `NSManagedObject`. The compiler checks a conformance,
+   so it cannot go stale.
+5. **A directory that states its layer.** A directory with the name `Domain` or
+   `UI` shows a decision that somebody made. The tool reads the directory names
+   from the file outward. The nearest directory wins.
+6. **The end of a directory name.** A module with the name `AuthUIDI` carries
    its layer in its own name. The tool reads this from the nearest directory
-   only. It does not read the name of a parent directory.
-5. **The shape of the dependencies.** A module that depends on a domain module
-   and on a data module connects them. Thus it is composition.
+   only.
+7. **What the file touches.** An `import CoreData`, a `URLSession`. This is
+   real, but it is weaker than a conformance, so the tool asks it last.
 
-The sequence is important. Before, the tool applied test 4 to every directory in a
-path. A project below a directory with the name `ModularSwiftUI` became
-presentation, from the top of the tree to the bottom. The same files below a
-directory with the name `AppCore` became domain. The tool now reads a name
-suffix from the nearest directory only.
+If no test gives an answer, the file has no layer. The tool reports this with
+`unclassified-files`. It does not guess.
+
+### Why a declaration comes before a directory name
+
+A directory name is what a person meant. A conformance is what that person
+wrote, and the compiler agrees with it.
+
+`WordPressIntelligence/UseCases/TranslationViewModel.swift` declares
+`ObservableObject` and `View`. When the directory name came first, the file was
+a use case in the domain, and it collected seven violations — two of them told
+the author to move a file that had not moved. A directory with the name
+`Utilities` made a `ViewModifier` a library. A directory with the name `Entity`
+made an `NSManagedObject` the domain.
+
+### Why what a file touches comes after
+
+A file in `Domain/` that names `URLSession` is a domain file that does something
+the domain refuses. That is the violation `restricted-symbols` reports. If the
+tool read the file as `data` because it names a session, the tool would delete
+its own finding, and it would agree with the mistake.
+
+So a declaration can win against a directory name. A use cannot. But a use is
+still evidence, and the tool reads it last: without it, 717 files in the sample
+had no layer, and a file with no layer gets no rule at all.
+
+### Why an application target is not always the composition root
+
+Composition is the layer that connects modules. A project that is one target has
+no modules to connect.
+
+UTM is one application target with 221 Swift files. The tool called all 221 of
+them composition, which refuses nothing — so no rule examined any of them, and
+`status` reported "100% of Swift files are inside the architecture" about a
+project the tool had read nothing from. The tool now uses the kind of an
+application target only when most of the project's Swift is outside it. UTM now
+reports 152 screens, 23 data files, and 41 files with no layer.
 
 The tool records which files got a layer from test 3 alone. Such a file tells
 you nothing about itself. `type-reference-boundary` does not speak about these
 files, because a boundary between a layer and a default is not a boundary.
 
-If no test gives an answer, the file has no layer. The tool reports this with
-`unclassified-files`. It does not guess.
-
 ---
 
 ## What the tool detects
 
-There are 23 rules. This table groups them by what they examine.
+There are 24 rules. This table groups them by what they examine.
 
 ### Boundaries between layers
 
@@ -148,6 +182,7 @@ There are 23 rules. This table groups them by what they examine.
 | `type-reference-boundary` | The same fault inside one module, where no import shows it |
 | `extension-boundary` | One layer that reopens a type of another layer |
 | `no-cycles` | A loop in the module graph |
+| `one-layer-per-file` | One file that declares two layers, where no import shows it |
 
 ### What a layer may touch
 
@@ -188,7 +223,7 @@ There are 23 rules. This table groups them by what they examine.
 ### What the tool does not detect
 
 The tool reads structure. It does not read behaviour. It does not compile your
-code. A project can be correct for all 23 rules and not build. Use the tool with
+code. A project can be correct for all 24 rules and not build. Use the tool with
 your build, not in place of it.
 
 The tool does not report a style. It had rules for extensions, for test

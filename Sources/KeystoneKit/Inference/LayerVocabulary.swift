@@ -80,17 +80,29 @@ public enum LayerVocabulary {
         return nil
     }
 
+    /// A path that says this file belongs to a test.
+    ///
+    /// Checked across the whole path, because test directories nest and
+    /// `Tests/FooTests/Support` is support code for tests rather than a shared
+    /// library. Read BEFORE a file's contents, unlike every other name: a
+    /// driver in an acceptance suite legitimately holds a fake store, and its
+    /// `UserDefaults` says what the double is made of, not which layer it is
+    /// in. The reference project's `Shopper`, `Buyer` and `Waiter` are exactly
+    /// that, and reading their contents first put them in `data` and broke
+    /// twenty-five boundaries that do not exist.
+    public static func testMatch(forDirectory directory: String) -> Match? {
+        let segments = directory.split(separator: "/").map(String.init)
+        guard let segment = segments.first(where: isTestSegment) else { return nil }
+        return Match(role: .tests, segment: segment)
+    }
+
     /// A directory that says its layer outright. Deliberate, so it outranks
-    /// everything except a path the project declared itself.
+    /// everything except a path the project declared itself and the file's own
+    /// contents.
     public static func exactMatch(forDirectory directory: String) -> Match? {
         let segments = directory.split(separator: "/").map(String.init)
 
-        // A test anywhere in the path is a test, checked first and across the
-        // whole path: test directories nest, and `Tests/FooTests/Support` is
-        // support code for tests rather than a shared library.
-        if let segment = segments.first(where: isTestSegment) {
-            return Match(role: .tests, segment: segment)
-        }
+        if let match = testMatch(forDirectory: directory) { return match }
 
         for segment in segments.reversed() {
             if let role = byName[segment] { return Match(role: role, segment: segment) }

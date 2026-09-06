@@ -23,8 +23,12 @@ public enum BoundaryPhrasing {
     }
 
     /// The instruction given when a layer reached past what it is allowed.
-    /// Falls back to a general statement of the inversion when the
-    /// configuration has not written a specific one.
+    ///
+    /// The layer's `reason` used to be returned on its own, and every layer in
+    /// the preset has one, so the three sentences below — which name the other
+    /// layer, what to depend on instead, and the directory the implementation
+    /// belongs in — were never reached. The reason is the principle; these are
+    /// the instructions for this file. Both, in that order.
     public static func invert(
         role: Role,
         definition: RoleDefinition,
@@ -32,8 +36,6 @@ public enum BoundaryPhrasing {
         file: String,
         advisor: DestinationAdvisor
     ) -> String {
-        if let reason = definition.reason { return reason }
-
         var lines = [
             "`\(role)` may depend on \(permittedTargets(definition)), and `\(other)` is not among them."
         ]
@@ -54,7 +56,9 @@ public enum BoundaryPhrasing {
             lines.append("The implementation belongs in \(destination), reached only through that protocol.")
         }
 
-        return lines.joined(separator: " ")
+        var text = lines.joined(separator: " ")
+        if let reason = definition.reason { text += "\n\n" + reason }
+        return text
     }
 
     /// Who a layer lets in, as prose.

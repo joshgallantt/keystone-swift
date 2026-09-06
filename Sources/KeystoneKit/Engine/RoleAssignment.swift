@@ -69,9 +69,14 @@ public struct RoleAssignment: Sendable {
             }
         }
 
-        // Then what the directories call themselves, in as many words.
+        // A path that says "test" comes before anything a file contains. A test
+        // may be built out of whatever it is testing, so a driver holding a
+        // fake store says what the double is made of, not which layer it is in.
+        // The reference project's `Shopper`, `Buyer` and `Waiter` are exactly
+        // that, and reading their contents first put them in `data` and
+        // invented twenty-five boundary violations.
         for file in swiftFiles where fileRoles[file] == nil {
-            guard let match = LayerVocabulary.exactMatch(forDirectory: Paths.directory(of: file)),
+            guard let match = LayerVocabulary.testMatch(forDirectory: Paths.directory(of: file)),
                   known.contains(match.role.rawValue) else { continue }
             fileRoles[file] = match.role
         }
@@ -88,13 +93,44 @@ public struct RoleAssignment: Sendable {
         // guess about one path segment. The fact goes first. It did not, and an
         // app called `ModularSwiftUI` had its own `AppDelegate` filed under
         // presentation.
+        // An app target is the composition root only where there is something
+        // to compose. Composition is the layer that introduces modules to each
+        // other; a project built as one target has no modules to introduce, so
+        // calling its app target composition does not describe it — it exempts
+        // it. UTM is one target of 221 files, every rule about layers was
+        // switched off for all of them, and `status` reported "100% of Swift
+        // files are inside the architecture" about a project this tool had
+        // learned nothing whatever about. Where there is only one production
+        // module, its files speak for themselves and what cannot speak is said
+        // to be unclassified, which is the true answer.
+        //
+        // The test is where the code is, not what the targets are called.
+        // "Another production target exists" made UTM a composition root on the
+        // strength of a one-file command-line tool, next to an app target
+        // holding the other two hundred and twenty files. So: most of the
+        // project's Swift must live outside the app for the app to be wiring
+        // it. The reference project keeps fifteen files in its app target and
+        // three hundred and ninety-three in packages, which is what a
+        // composition root looks like; UTM keeps everything in one place, which
+        // is a project whose layers this tool has to read from the files.
+        //
+        // Majority is the same measure `modal` uses below. A tool that reads
+        // evidence needs one idea of what "most" means, not two.
+        let appFiles = graph.orderedModules
+            .filter { $0.kind == .app }
+            .reduce(into: 0) { $0 += (filesByModule[$1.name] ?? []).count }
+        let productionFiles = graph.orderedModules
+            .filter { !$0.kind.isTest }
+            .reduce(into: 0) { $0 += (filesByModule[$1.name] ?? []).count }
+        let composesModules = productionFiles > 0 && appFiles * 2 <= productionFiles
+
         var placedByTargetKind: Set<String> = []
         for file in swiftFiles where fileRoles[file] == nil {
             guard let module = graph.module(owning: file) else { continue }
             if module.kind.isTest, known.contains(Role.tests.rawValue) {
                 fileRoles[file] = .tests
                 placedByTargetKind.insert(file)
-            } else if module.kind == .app, known.contains(Role.composition.rawValue) {
+            } else if module.kind == .app, composesModules, known.contains(Role.composition.rawValue) {
                 fileRoles[file] = .composition
                 placedByTargetKind.insert(file)
             }
@@ -112,10 +148,32 @@ public struct RoleAssignment: Sendable {
         var placedByContents: Set<String> = []
         for file in swiftFiles where fileRoles[file] == nil {
             guard let facts = facts[file],
-                  let role = ContentMarkers.role(of: facts),
+                  let role = ContentMarkers.declaredRole(of: facts),
                   known.contains(role.rawValue) else { continue }
             fileRoles[file] = role
             placedByContents.insert(file)
+        }
+
+        // Then what the directories call themselves, in as many words.
+        //
+        // Below contents, not above. Run over thirty-two open-source apps, a
+        // directory name lost to the file it named in every one of them.
+        // `WordPressIntelligence/UseCases/TranslationViewModel.swift` declares
+        // `ObservableObject` and a `: View` and collected seven findings as
+        // `domain` — two of them from `declaration-placement`, which is the tool
+        // diagnosing its own misplacement and telling the author to move a file
+        // that never moved. A folder called `Utilities` made a `ViewModifier` a
+        // library; `Entity` made an `NSManagedObject` the domain; `Library` made
+        // firefox's bookmarks panel a utility package.
+        //
+        // A name is what somebody meant. A conformance is what they wrote, the
+        // compiler checks it, and it cannot go stale. Contents can never yield
+        // `domain` or `library`, so a directory called `Domain/` is still what
+        // places a domain file; this rung only loses where a fact refutes it.
+        for file in swiftFiles where fileRoles[file] == nil {
+            guard let match = LayerVocabulary.exactMatch(forDirectory: Paths.directory(of: file)),
+                  known.contains(match.role.rawValue) else { continue }
+            fileRoles[file] = match.role
         }
 
         // Only then the weakest reading of a name.
@@ -123,6 +181,25 @@ public struct RoleAssignment: Sendable {
             guard let match = LayerVocabulary.suffixMatch(forDirectory: Paths.directory(of: file)),
                   known.contains(match.role.rawValue) else { continue }
             fileRoles[file] = match.role
+        }
+
+        // Last, before giving up on the file: what it merely touches. An
+        // `import CoreData`, a `URLSession` — real evidence, but not the same
+        // evidence as a conformance, so it is asked after every name in the
+        // path has been asked and none of them answered.
+        //
+        // This rung is why the two readings are separate. Reading usage as
+        // strongly as declaration re-labelled a `Domain/` file naming
+        // `URLSession` as `data`, and deleting `restricted-symbols` by agreeing
+        // with the mistake is the worst thing a checker can do. Refusing to
+        // read usage at all left 717 files across the sample with no layer, and
+        // an unclassified file gets no rule at all — quieter, and worse.
+        for file in swiftFiles where fileRoles[file] == nil {
+            guard let facts = facts[file],
+                  let role = ContentMarkers.usedRole(of: facts),
+                  known.contains(role.rawValue) else { continue }
+            fileRoles[file] = role
+            placedByContents.insert(file)
         }
 
         var moduleRoles: [String: Role] = [:]
@@ -139,7 +216,7 @@ public struct RoleAssignment: Sendable {
                 evidence[module.name] = "test target"
                 continue
             }
-            if module.kind == .app, known.contains(Role.composition.rawValue) {
+            if module.kind == .app, composesModules, known.contains(Role.composition.rawValue) {
                 moduleRoles[module.name] = .composition
                 evidence[module.name] = "application target"
                 continue
@@ -165,7 +242,7 @@ public struct RoleAssignment: Sendable {
                 let exact = LayerVocabulary.exactMatch(forDirectory: module.sourceRoots.first ?? "") != nil
                 evidence[module.name] = exact
                     ? "directory named `\(match.segment)`"
-                    : "a directory name ending in `\(match.segment.suffix(2))`"
+                    : "a directory called `\(match.segment)`, read for its ending"
                 continue
             }
 
@@ -194,6 +271,15 @@ public struct RoleAssignment: Sendable {
         let placed = moduleRoles
         var derived: [String: (Role, String)] = [:]
         for module in graph.orderedModules where placed[module.name] == nil {
+            // A target holding no Swift at all is not asked. Everything above
+            // failed to place it because there was nothing to read, and the
+            // shape of its edges is the one piece of evidence still available —
+            // which is exactly the evidence that says least. WordPress has
+            // Objective-C targets whose names end in `UI`; a layer guessed for
+            // one of them became the far side of 142 boundary findings against
+            // Swift files this tool never read a line of. A module with no
+            // Swift is a module this tool has no opinion about.
+            guard !(filesByModule[module.name] ?? []).isEmpty else { continue }
             let edges = graph.edges[module.name] ?? []
             let reached = Set(edges.compactMap { placed[$0] })
             // A module that pulls in somebody else's package is not the stable
@@ -239,9 +325,12 @@ public struct RoleAssignment: Sendable {
         if reached.contains(.domain) && reached.contains(.data) {
             return (.composition, "depends on both a domain and a data module")
         }
-        if reached.contains(.presentation) {
-            return (.composition, "depends on a presentation module")
-        }
+        // "Depends on a presentation module" used to return composition, and
+        // it is the app target that this describes — which is placed by its
+        // kind long before the shape is consulted. What was left reaching a
+        // presentation module was, overwhelmingly, another presentation
+        // module: a feature on a design system. Calling those composition put
+        // roughly seventy WordPress findings on modules that were screens.
         if reached.contains(.domain) {
             return (.data, "depends on a domain module without being a screen")
         }

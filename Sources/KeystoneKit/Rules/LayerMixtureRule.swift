@@ -11,9 +11,16 @@ import Foundation
 /// cannot, because there is no second declaration to point at.
 ///
 /// The evidence is the platform's own vocabulary, read by `ContentMarkers`: a
-/// conformance to `View`, an `@main`, an `NSManagedObject`, a `URLSession`. Two
-/// of those in one file is the finding, and the report names both witnesses so
-/// the reader does not have to hunt for what the tool saw.
+/// conformance to `View`, an `NSManagedObject`, an `@Model`. Two of those in one
+/// file is the finding, and the report names both witnesses so the reader does
+/// not have to hunt for what the tool saw.
+///
+/// Declarations only. Imports and symbols were counted too, and that made the
+/// rule a second voice for findings other rules had already made: `import
+/// CoreData` in a screen is `framework-purity`, `UserDefaults` in one is
+/// `restricted-symbols`, and this reported both again on the same line of the
+/// same file under a different name. A rule earns its place by seeing something
+/// nothing else can.
 ///
 /// Tests are exempt, and deliberately. A test may reach anywhere by design —
 /// the preset gives the tests layer `mayDependOn: ["*"]` — so a suite that
@@ -36,7 +43,19 @@ public struct LayerMixtureRule: Rule {
             // serve one.
             if file.role?.isTestFacing == true { continue }
 
-            let layers = ContentMarkers.layers(in: file.facts)
+            var layers = ContentMarkers.declaredLayers(in: file.facts)
+
+            // An entry point is not a layer claim about the file around it.
+            // `@main struct App: App { WindowGroup { RootView() } }` is the
+            // SwiftUI template, and reading its scene tree as presentation
+            // mixed with its `@main` as composition made the rule fire on the
+            // first file of nearly every app in the sample. The platform
+            // requires that declaration in exactly one place; the author did
+            // not choose to put two layers there.
+            if layers[.composition] != nil, layers[.presentation] != nil {
+                layers[.composition] = nil
+            }
+
             guard layers.count > 1 else { continue }
 
             // The file may say it is a test even where the layer does not. A
@@ -48,7 +67,7 @@ public struct LayerMixtureRule: Rule {
 
             let named = layers.keys.sorted().map { "`\($0)`" }
             let evidence = layers.keys.sorted()
-                .map { "\($0) from \(layers[$0]!)" }
+                .map { "\($0) from \(layers[$0]!.witness)" }
                 .joined(separator: ", ")
 
             violations.append(
@@ -56,7 +75,9 @@ public struct LayerMixtureRule: Rule {
                     rule: identifier,
                     severity: defaultSeverity,
                     file: file.path,
-                    line: nil,
+                    // The first witness, so the report opens the file at
+                    // something the tool actually read rather than at line one.
+                    line: layers.values.map(\.line).min(),
                     summary: "one file holds "
                         + named.dropLast().joined(separator: ", ")
                         + " and " + (named.last ?? "") + " code",

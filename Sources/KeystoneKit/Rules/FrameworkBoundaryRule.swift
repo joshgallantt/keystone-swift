@@ -30,10 +30,11 @@ public struct FrameworkBoundaryRule: Rule {
                         file: file.path,
                         line: reference.line,
                         summary: "`\(role)` imports `\(reference.module)`, a `\(category)` framework it refuses",
-                        fix: definition.reason ?? FrameworkBoundaryRule.advice(
+                        fix: FrameworkBoundaryRule.advice(
                             role: role,
                             category: category,
                             framework: reference.module,
+                            definition: definition,
                             context: context
                         ),
                         source: Sources.businessRules
@@ -47,9 +48,27 @@ public struct FrameworkBoundaryRule: Rule {
 
     /// Names the layers that *are* allowed the framework, so the reader is told
     /// where the code goes rather than only that it cannot stay.
-    static func advice(role: Role, category: String, framework: String, context: RuleContext) -> String {
+    ///
+    /// This used to be written as `definition.reason ?? advice(...)`, and every
+    /// layer in the preset has a `reason`, so it never once ran: some five
+    /// hundred reports across the sample carried the layer's general statement
+    /// of itself and not one word about the framework actually imported. The
+    /// two are not alternatives. The reason says why the layer is drawn where
+    /// it is; this says where *this* import goes instead, which is the only
+    /// part the reader can act on. Specific first, principle after.
+    static func advice(
+        role: Role,
+        category: String,
+        framework: String,
+        definition: RoleDefinition,
+        context: RuleContext
+    ) -> String {
+        // Test roles are left out. They are allowed the framework, but "put it
+        // in `tests`" is not an answer to where production code goes, and
+        // listing them made every one of these read as a six-item menu.
         let permitted = context.configuration.orderedRoles
             .filter { !$0.definition.deniedFrameworks.contains(category) && $0.name != role }
+            .filter { !$0.name.isTestFacing }
             .map { "`\($0.name)`" }
 
         var text = "A layer that imports `\(framework)` is tied to it: it cannot be tested without it, "
@@ -61,6 +80,8 @@ public struct FrameworkBoundaryRule: Rule {
         } else {
             text += " — \(permitted.joined(separator: ", "))."
         }
+
+        if let reason = definition.reason { text += "\n\n" + reason }
 
         return text
     }
