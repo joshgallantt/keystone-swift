@@ -1,383 +1,380 @@
 # keystone-swift
 
-**Architecture enforcement for iOS projects, in the write path.**
+**keystone-swift checks the architecture of a Swift project.** It reads the
+project and finds the layers in it. Then it checks each file against the rules
+for its layer. It does this from the command line, in continuous integration
+(CI), and before an AI agent writes a file.
 
-Point it at a Swift codebase. It reads the build graph, works out which layer every file belongs
-to, and from then on refuses any change that crosses a boundary — before the write lands, with the
-correction and the destination attached.
+The tool gives the same result for the same files. No model makes the decision.
+If the tool cannot decide a rule, it does not apply the rule. It does not guess.
+
+Each violation report shows you four things:
+
+- the rule
+- the location
+- the correction
+- the source of the rule
 
 ```
-✗ dependency-rule  1 violation
+✗ dependency-rule  91 violations  ·  1 distinct
 
-  UI/BagUI/Sources/UI/BagScreen/BagViewModel.swift:4
-    `presentation` imports `BagData`, which belongs to `data`
+  `presentation` imports `MastodonCore`, which belongs to `data`  ×91
+  Mastodon/Common/Views/BoostOrQuoteDialog.swift:6
+  Mastodon/Common/Views/MetaTextInputField.swift:7
+  … and 83 more files
 
-    A screen reaches the domain and never storage. Take the use case protocol through the
-    initialiser and let the composition root decide which concrete type satisfies it — that
-    is what makes the screen testable without a network or a database.
+    A screen reaches the domain and never storage. Take the use case protocol
+    through the initialiser. Let the composition root decide which concrete type
+    satisfies it.
 
-    Robert C. Martin, Clean Architecture (2017), Ch. 22 — The Clean Architecture.
+    Robert C. Martin, Clean Architecture (2017), Ch. 22 — The Dependency Rule.
 ```
-
-No model decides anything. Same files plus same configuration gives the same answer, on your
-machine and in CI, every time.
 
 ---
 
-## The one idea
+## Contents
 
-Every architecture checker identifies a layer by **naming** one — a roster of module names in a
-manifest, a package string in an assertion. That is what ties them to one project.
-
-keystone-swift identifies layers by **evidence**, and states every rule between *roles*:
-
-```
-domain       → nothing
-data         → domain, library
-presentation → domain, library
-library      → library
-composition  → anything
-```
-
-No project's names appear anywhere in that. An e-commerce app and a fitness tracker get the same
-matrix. Two mechanisms make it work.
-
-**The target graph.** Every `Package.swift` and `project.pbxproj` is parsed into targets, source
-roots, dependencies and external packages. Each target gets a role. The dependency rule is then
-checked twice — once against `import` statements, and once against the manifest edges, because an
-import is a mistake while a manifest edge is a decision, and it is the decision that quietly makes
-the next hundred mistakes legal.
-
-**The symbol index.** Every type is indexed to the layer that declared it. This is what replaces
-hardcoded rosters. Instead of *"a screen may not extend `Product`, `Bag` or `Order`"*, the rule is
-*"a screen may not extend a domain type"* — and it works on a codebase nobody has read yet.
-
-The index is also why **single-target apps are first-class**. With no modules there are no imports
-to check, so boundaries are enforced by type reference instead: a file in `Presentation/` naming a
-type declared in `Data/` has crossed the line whether or not the compiler noticed.
+[What the tool does](#what-the-tool-does) ·
+[What the tool reads](#what-the-tool-reads) ·
+[How the tool gives a layer to each file](#how-the-tool-gives-a-layer-to-each-file) ·
+[What the tool detects](#what-the-tool-detects) ·
+[Installation](#installation) ·
+[Commands](#commands) ·
+[How to start on an old project](#how-to-start-on-an-old-project) ·
+[The configuration file](#the-configuration-file) ·
+[Agents](#agents) ·
+[Continuous integration](#continuous-integration) ·
+[Limits](#limits) ·
+[Sources](#sources)
 
 ---
 
-## Install
+## What the tool does
 
-Needs Swift 6.0 or later, which you already have if you have Xcode.
+A Swift compiler stops a module when that module uses a symbol that it cannot
+see. This is a strong control. But the compiler cannot see the difference
+between a screen and a business rule. Two types in one module are equal to the
+compiler.
+
+keystone-swift adds that difference. It puts each file into a layer. Then it
+applies the rules for that layer.
+
+There are seven layers:
+
+| Layer | What it holds |
+| --- | --- |
+| `domain` | Entities, use cases, and the contracts for them. The stable centre. |
+| `data` | Repositories, clients, stores, and data transfer objects (DTOs). |
+| `presentation` | Views and view models. |
+| `composition` | The one place that knows every concrete type. Wiring only. |
+| `library` | Utilities with no knowledge of the application. |
+| `testSupport` | Doubles, drivers, and builders that test targets share. |
+| `tests` | Test targets. |
+
+The tool does not tell you to use these seven layers. It finds the layers that
+your project already has.
+
+---
+
+## What the tool reads
+
+The tool reads the structure of the project. It does not need a configuration
+file.
+
+It reads these sources:
+
+- **Swift package manifests.** The tool reads each `Package.swift` file. It
+  finds every target and every product in the file. A manifest can calculate its
+  target list. The tool reads those targets also.
+- **Xcode projects.** The tool reads each `project.pbxproj` file. It finds the
+  targets and their kinds.
+- **Directory names.** A directory with the name `Domain`, `Data`, `UI` or
+  `Tests` tells the tool what is in it.
+- **The module graph.** The tool reads which module depends on which module.
+- **The Swift source.** A parser reads each file. The tool does not use regular
+  expressions. A type name in a comment or in a string is not a declaration.
+
+---
+
+## How the tool gives a layer to each file
+
+This is the most important part of the tool. Every rule is only as correct as
+the layer that the tool gives to a file.
+
+The tool applies five tests, in this sequence. The first test that gives an
+answer is the answer.
+
+1. **A path that the project declares.** The configuration file can name a path
+   for a layer. This wins against all other evidence.
+2. **A directory that states its layer.** A directory with the name `Domain`
+   or `UI` shows a decision that somebody made. The tool reads the directory names
+   from the file outward. The nearest directory wins.
+3. **The kind of the target.** A manifest that declares a `.testTarget` states a
+   fact. An Xcode target of the kind "application" states a fact. A fact is
+   stronger than a name.
+4. **The end of a directory name.** A module with the name `AuthUIDI` carries
+   its layer in its own name. The tool reads this from the nearest directory
+   only. It does not read the name of a parent directory.
+5. **The shape of the dependencies.** A module that depends on a domain module
+   and on a data module connects them. Thus it is composition.
+
+The sequence is important. Before, the tool applied test 4 to every directory in a
+path. A project below a directory with the name `ModularSwiftUI` became
+presentation, from the top of the tree to the bottom. The same files below a
+directory with the name `AppCore` became domain. The tool now reads a name
+suffix from the nearest directory only.
+
+The tool records which files got a layer from test 3 alone. Such a file tells
+you nothing about itself. `type-reference-boundary` does not speak about these
+files, because a boundary between a layer and a default is not a boundary.
+
+If no test gives an answer, the file has no layer. The tool reports this with
+`unclassified-files`. It does not guess.
+
+---
+
+## What the tool detects
+
+There are 23 rules. This table groups them by what they examine.
+
+### Boundaries between layers
+
+| Rule | What it detects |
+| --- | --- |
+| `dependency-rule` | An `import` of a module that the layer must not use |
+| `target-dependency-rule` | The same, as the build system declares it |
+| `not-visible` | A module that reaches a module which is visible to other layers only |
+| `feature-isolation` | One feature that imports another feature |
+| `type-reference-boundary` | The same fault inside one module, where no import shows it |
+| `extension-boundary` | One layer that reopens a type of another layer |
+| `no-cycles` | A loop in the module graph |
+
+### What a layer may touch
+
+| Rule | What it detects |
+| --- | --- |
+| `framework-purity` | A platform framework in a layer that must not know it |
+| `restricted-symbols` | `URLSession`, `FileManager` or `UserDefaults`, which arrive inside Foundation |
+| `third-party-boundary` | A dependency on another person's package, in a layer that must outlive it |
+
+### Where a declaration lives
+
+| Rule | What it detects |
+| --- | --- |
+| `declaration-placement` | A type in the wrong layer for what it is |
+| `contract-before-implementation` | A type that is named as an implementation, but implements nothing |
+| `layer-vocabulary` | A layer that uses the words of a different layer |
+| `imports-are-declared` | An `import` that the manifest does not declare |
+| `no-shared-singletons` | A global instance, which is a dependency that nobody declared |
+
+### Tests
+
+| Rule | What it detects |
+| --- | --- |
+| `support-separation` | A test in a `Support/` directory, or a support file with tests in it |
+| `tests-assert-something` | A test suite that asserts nothing |
+| `acceptance-vocabulary` | A business-facing test that names a concrete type |
+| `test-names-read-as-prose` | A business-facing test with a name that a person cannot read |
+| `snapshots-are-committed` | A snapshot suite with no recorded snapshots |
+| `doubles-are-uniquely-named` | Two test doubles with the same name |
+| `doubles-live-with-their-protocol` | A double in a different package from its protocol |
+
+### Coverage
+
+| Rule | What it detects |
+| --- | --- |
+| `unclassified-files` | A Swift file that no layer claims, thus no rule examined |
+
+### What the tool does not detect
+
+The tool reads structure. It does not read behaviour. It does not compile your
+code. A project can be correct for all 23 rules and not build. Use the tool with
+your build, not in place of it.
+
+The tool does not report a style. It had rules for extensions, for test
+directory names, and for `TODO` comments. Those rules made 59% of all of the
+output on a sample of 32 open-source applications. They reported the name of a
+file. They did not report a dependency, a boundary, or a layer. The tool no
+longer has them.
+
+---
+
+## Installation
+
+You need **Swift 6.2** or a later version, and **git**.
 
 ```bash
-git clone git@github.com:joshgallantt/keystone-swift.git ~/.keystone-swift
-bash ~/.keystone-swift/install.sh
+git clone git@github.com:joshgallantt/keystone-swift.git
+cd keystone-swift
+./install.sh
 ```
 
-The first build compiles swift-syntax and takes about a minute. To remove it,
-`bash ~/.keystone-swift/install.sh --uninstall`.
-
-## Getting started
+Then go to your project and run the tool:
 
 ```bash
-cd your-app
-
-keystone-swift init             # read the project, write keystone-swift.json
-keystone-swift check            # see where it stands today
-keystone-swift baseline         # accept that as existing debt
-keystone-swift install claude   # refuse violating writes from here on
-keystone-swift install ci       # and hold the line in pull requests
+cd your-project
+keystone-swift
 ```
 
-`init` prints what it worked out before it writes anything:
+The tool needs no configuration file. It reads your project.
 
-```
-MODULE            LAYER          FILES  WHY
-Bag               domain         13     directory named `Domain`
-BagData           data           4      directory named `Data`
-BagDI             composition    1      directory named `DI`
-BagUI             presentation   5      directory named `UI`
-Networking        library        2      package under `Library`
-iPhone            composition    13     application target
-
-domain         90 files  Component/*/Sources/Domain/**
-data           31 files  Component/*/Sources/Data/**
-presentation   76 files  UI/*/Sources/UI/**
-composition    35 files  */*/Sources/DI/**, iPhone/**
-library         2 files  Library/**
-tests          98 files  */*/Tests/**
-```
-
-**Read it before you trust it.** Inference runs exactly once, and its output is a file you review.
-Everything afterwards is a pure function of that file — which is what makes two runs agree, and
-what makes a wrong guess left in it a wrong rule rather than a mystery.
-
-## Adopting this on an existing app
-
-The point is not to inventory what is wrong. It is to move a codebase toward a shape it does not
-have yet, one refusal at a time.
-
-A first run on a real app reports hundreds of violations, which is indistinguishable from no signal
-at all. So `keystone-swift baseline` records them as accepted debt and the tool goes quiet. From
-that moment **nothing new gets in**, while the recorded number only ever falls:
-
-```bash
-keystone-swift status     # 63% of files are inside the architecture; 214 accepted, 0 new
-keystone-swift baseline   # bank progress: 31 fixed since the last baseline
-```
-
-Every violation ends with a destination — `Move it to Component/Bag/Sources/Domain/` — computed
-from your own layout rather than described in the abstract. That is what makes the backlog
-something an agent can be pointed at and told to work through.
-
-Delete the baseline when the project is clean, and the rules become absolute.
-
-## Scope
-
-A codebase being refactored needs more than "is the whole thing sound".
-
-```bash
-keystone-swift check                    the whole project
-keystone-swift check --changed          what this branch changed, uncommitted work included
-keystone-swift check --staged           what is staged for the next commit
-keystone-swift check --branch feature/x what that branch changed against the trunk
-keystone-swift check --commit a1b2c3d   what one commit touched
-keystone-swift check --at v2.0.0        the project as it stood at a ref
-```
-
-*Which files* and *which tree* are separate questions, and conflating them is how a
-tool ends up lying about history. `--commit` reads that commit's tree, not today's
-working copy — reviewing last month's commit against today's files would report
-violations in code it never contained. `--at` sets the tree independently when you want
-the other combination.
-
-## The rules
-
-**Boundaries** — errors
-
-| Rule | What it refuses |
-| --- | --- |
-| `dependency-rule` | A layer importing a layer it may not reach |
-| `target-dependency-rule` | The same, declared in `Package.swift` or `project.pbxproj` |
-| `framework-purity` | A layer importing a framework *category* it refuses — `ui`, `persistence`, `crypto` |
-| `restricted-symbols` | `URLSession`, `FileManager` and friends arriving inside an allowed `Foundation` |
-| `third-party-boundary` | A stable layer taking a dependency on somebody else's release schedule |
-| `no-cycles` | Two modules that cannot be built, tested or deleted apart |
-| `feature-isolation` | Sibling modules depending on each other, where a layer asks for that |
-| `type-reference-boundary` | A boundary crossed inside one module, where no import can catch it |
-
-**Structure** — errors
-
-| Rule | What it refuses |
-| --- | --- |
-| `declaration-placement` | `*UseCase`, `*Repository`, `*DTO`, `*ViewModel`, `*View` in the wrong layer |
-| `extension-boundary` | One layer reopening another layer's types |
-
-**Testing** — errors, except where noted
-
-| Rule | What it checks |
-| --- | --- |
-| `support-separation` | `Support/` declares no tests |
-| `tests-assert-something` | A file in a tier declares at least one |
-| `doubles-are-uniquely-named` | Two doubles sharing a name across the repository |
-| `doubles-live-with-their-protocol` | A double written by a package that calls a protocol rather than the one that declares it *(warning)* |
-| `acceptance-vocabulary` | An acceptance test naming a type the data layer declared |
-| `test-names-read-as-prose` | A business-facing test named as an identifier |
-| `snapshots-are-committed` | A snapshot suite with nothing recorded *(warning)* |
-
-**Warnings**
-
-| Rule | What it reports |
-| --- | --- |
-| `layer-vocabulary` | A domain protocol named for the wire — `*Client`, `*API`, `*Gateway` |
-| `imports-are-declared` | A module imported but reached only transitively |
-| `contract-before-implementation` | A `Default*` or `*Impl` that implements nothing |
-| `no-shared-singletons` | A dependency reached for rather than passed in |
-| `unclassified-files` | A file no layer claims, and therefore no rule examined |
-
-That last one matters more than it looks. Silence is every architecture checker's
-failure mode: a file nothing claims passes everything, and a project can be entirely
-"clean" while most of it is unexamined. During a migration it is also the progress bar.
-
-### Conventions that are not defaults
-
-`clients-live-in-data` and `stores-live-in-data` are deliberately absent. Both read well
-until you meet the app they are wrong for — a CRM whose `Client` is its most important
-entity, a retail app whose `Store` is a place on a map. `UseCase`, `Repository`, `DTO`,
-`ViewModel` and `View` name *patterns*, so they ship as defaults; a suffix that is also
-an ordinary noun cannot. Add them if they suit your domain:
-
-```json
-{ "name": "clients-live-in-data",
-  "match": { "nameSuffix": "Client", "kinds": ["struct", "class", "actor"] },
-  "requireRole": ["data"], "exemptRoles": ["tests", "composition", "library"] }
-```
-
-The same principle runs through the tool: `layer-vocabulary` flags a domain **protocol**
-named `*Client`, because that is a service that borrowed a word from the layer below it,
-and never a **struct** named `Client`, because that is somebody's whole business.
-
-## Testing
-
-Three tiers, because they answer different questions. An acceptance failure says *this
-stopped working*; a unit failure says *which rule is wrong*; neither can tell you a
-screen now lays something out wrongly.
-
-```
-<Package>/Tests/
-  <Package>AcceptanceTests/
-    BrowsingTests.swift              journeys — @Test("Someone who … ends up with …")
-    Support/
-      Store.swift                    the world: setting up what exists
-      Shopper.swift                  the actor: the vocabulary the tests speak
-      AThing.swift                   test data builders
-  <Package>UnitTests/
-    ThingTests.swift
-    Support/
-      Doubles.swift                  StubThing, SpyThing
-  <Package>SnapshotTests/            packages with views
-    ScreenSnapshots.swift
-    __Snapshots__/                   committed
-```
-
-The `Support/` split is what makes everything else checkable. Without it a test target
-is a bag of files and you cannot ask whether a suite asserts anything, or whether a
-helper has grown assertions of its own.
-
-Doubles carry their kind in the name, from Meszaros' *xUnit Test Patterns* by way of
-Fowler's [Mocks Aren't Stubs](https://martinfowler.com/articles/mocksArentStubs.html) —
-a `Stub` answers, a `Spy` records, a `Mock` expects, a `Fake` works. The kind tells the
-reader whether the test verifies state or behaviour.
-
-**And a double belongs to whoever declares the protocol**, published from that package as
-a `<Package>TestSupport` product. This is the rule that stops doubles multiplying: when
-callers write their own, one protocol collects a stub per consumer, each drifting from
-the real behaviour on its own schedule while every suite goes on passing. It is the
-argument in *Software Engineering at Google* (Winters, Manshreck & Wright, Ch. 13) for the
-API's owner writing the fake, and the Swift ecosystem does it structurally —
-[swift-nio](https://github.com/apple/swift-nio) ships `NIOEmbedded` beside the protocols
-it doubles, and [swift-dependencies](https://github.com/pointfreeco/swift-dependencies)
-puts `testValue` in the same declaration as the interface.
-
-The rule stands down in one case: when moving the double would turn a dependency around.
-A fake of a library's protocol that is built out of one component's types cannot go and
-live in the library, because the library would have to learn about the component.
-
-**On Cucumber.** The discipline, not the tooling. Gherkin runners for Swift are dated or
-unmaintained, and buy `.feature` files at the cost of an indirection between the sentence
-and the code. `@Test("…")` gives the readable sentence natively, and unlike a runner,
-keystone-swift can *enforce* the rest: prose names, and nothing from the data layer
-named in the suite. A Gherkin runner would happily execute a feature file full of
-`FakeCatalog`.
-
-
-**On snapshots.** Apple ships none — not in Swift Testing, not in XCTest. The standard is
-[pointfreeco/swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing),
-which has native Swift Testing support. `snapshots-are-committed` exists because a
-snapshot suite whose references are not in the repository writes them on every run and
-compares them against itself: green in CI, and never once able to fail.
-
-A project with **no packages at all** is treated as a single one, so a one-target app is
-held to its tiers rather than skipped — that being the codebase that needs them most.
-
-`Tests/Fixtures/` holds two complete worked examples — a multi-package workspace and a
-single-target app, deliberately about different things — and the suite holds both to
-every rule.
-
-## Agents
-
-**Claude Code** — `keystone-swift install claude` (add `--user` for every project):
-
-| Hook | What it does |
-| --- | --- |
-| `SessionStart` | Hands over the rules, generated from the manifest a moment before |
-| `PreToolUse` | Refuses a `Write` or `Edit` that breaks a boundary; blocks shell redirection into `.swift` |
-| `Stop` | Runs the whole-project pass before the turn is allowed to finish |
-
-Reading a rule costs nothing; being refused costs a write and a retry. That is why the session hook
-exists as well as the gate. The `Stop` hook is there because cycles, sibling coupling and
-unclassified files cannot be seen from one write — without it they would first be noticed by CI,
-after the work was handed over as finished.
-
-Nothing is checked into your repository. A generated copy of the rules drifts from the manifest the
-checker actually reads while still sounding authoritative, and an agent obeying a stale copy writes
-code the hook then refuses.
-
-**Kiro** — `keystone-swift install kiro`. Writes a hook and a steering file. Kiro's hooks fire
-*after* a file is saved, so this reports rather than prevents; the steering file tells the agent to
-read the rules first, which is the cheaper of the two.
-
-**Anything else** — the tool is a normal command with defined exit codes:
-
-```bash
-cat pending.swift | keystone-swift check --file Sources/Domain/Order.swift
-# 0 permitted   1 the write breaks a rule   2 could not decide
-```
-
-Exit `2` never blocks anything. An unreadable payload, a file no layer claims, a configuration that
-will not load — all of them let the write through, because a tool that blocks on its own confusion
-gets uninstalled by the end of the day, and CI still catches what the hook missed.
-
-## CI
-
-`keystone-swift install ci` writes `.github/workflows/architecture.yml`. It needs `fetch-depth: 0`
-for the merge base, and a `KEYSTONE_SWIFT_TOKEN` secret while this repository is private.
-
-It reports only what is new against the baseline, so it can be switched on today without failing
-on inherited debt.
+---
 
 ## Commands
 
-| Command | |
+| Command | What it does |
 | --- | --- |
-| `init` | Read the project and write `keystone-swift.json` for review |
-| `check` | Check the project. See [Scope](#scope) for `--changed`, `--commit`, `--at` |
-| `status` | Which layers exist, what is unclassified, how much debt is left |
-| `baseline` | Record today's violations as accepted |
-| `rules` | Print the architecture as a document for an agent to read |
-| `doctor` | What is installed, and whether the configuration loads |
-| `install` / `uninstall` | `claude`, `kiro`, `ci`, or `all` |
+| `keystone-swift` | Check the project. This is the default command. |
+| `keystone-swift status` | Show the layers, the unclassified files, and the debt |
+| `keystone-swift baseline` | Record today's violations as accepted debt |
+| `keystone-swift rules` | Print the architecture as a document |
+| `keystone-swift rules --list` | Show each rule and its severity |
+| `keystone-swift init` | Write `keystone-swift.json` for you to examine |
+| `keystone-swift doctor` | Show what is installed, and if the configuration loads |
+| `keystone-swift install claude` | Add the agent hook |
 
-## Configuration
+### What to check
+
+| Option | What the tool checks |
+| --- | --- |
+| (none) | The whole project |
+| `--changed` | What this branch changed, with the uncommitted work |
+| `--staged` | What is staged for the next commit |
+| `--branch <name>` | What a branch changed against the trunk |
+| `--commit <sha>` | What one commit touched |
+| `--at <ref>` | The project as it was at a reference |
+| `--file <path>` | One file. Send the content on stdin. |
+
+### Output options
+
+| Option | What it does |
+| --- | --- |
+| `--json` | Machine-readable output |
+| `--reporter xcode` | One line for each violation, which Xcode shows inline |
+| `--reporter github` | Annotations for GitHub Actions |
+| `--include-accepted` | Report the violations that the baseline accepted also |
+| `--no-colour` | Plain text |
+
+### Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Clean |
+| `1` | The tool found violations |
+| `2` | The tool could not decide |
+
+Code `2` never stops your work. A tool that fails closed on its own confusion is
+a tool that you remove.
+
+---
+
+## How to start on an old project
+
+An old project has violations. Do not try to correct all of them.
+
+1. Run `keystone-swift status`. Read how much of the project has a layer.
+2. Correct the unclassified files first. A file with no layer gets no
+   examination. Move it, or exclude it on purpose.
+3. Run `keystone-swift baseline`. This records today's violations as accepted
+   debt.
+4. Run `keystone-swift --changed` in your work. Only new violations fail.
+5. Correct the accepted violations when you touch the code near them.
+
+The recorded number goes down. It does not go up.
+
+---
+
+## The configuration file
+
+Most projects need no configuration file. The tool reads the layout from the
+repository.
+
+A manifest holds two things:
+
+- an exemption, with the reason for it
+- a path or a target name, for a layout that the tool cannot read
+
+Do not add an option to stop a false report. If a rule needs an option to be
+correct, the rule is wrong. Tell us about it.
 
 ```json
 {
+  "version": 1,
+  "name": "MyApp",
   "roles": {
-    "domain": {
-      "paths": ["Component/*/Sources/Domain/**"],
-      "mayDependOn": [],
-      "sameRole": "allow",
-      "deniedFrameworks": ["ui", "persistence", "networking", "crypto"],
-      "allowsThirdParty": false,
-      "deniedSymbols": ["URLSession", "FileManager"],
-      "reason": "Printed when this boundary is crossed. Write the correction, not the rule."
-    }
+    "domain": { "targets": ["MyAppCore", "MyAppKit"] }
   }
 }
 ```
 
-Roles are an open set — rename `domain` to `core`, or add a seventh layer, and the tool behaves
-identically, because no rule reads a role's name. `mayDependOn: ["*"]` is what a composition root
-is for. `sameRole` is `allow`, `denyAcrossPackages` or `deny`.
+---
 
-`reason` is not a comment. It is what gets printed, and what an agent is told to do instead.
+## Agents
+
+An AI agent writes files quickly. A rule that CI applies one hour later is a
+rule that the agent has already broken many times.
+
+```bash
+keystone-swift install claude
+```
+
+This does two things:
+
+- The agent reads your architecture at the start of each session.
+- The tool examines each write **before** it lands.
+
+The hook answers with one of three codes:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The write is permitted |
+| `1` | The write breaks a rule |
+| `2` | The tool could not decide |
+
+The reason that the tool gives is the correction. The agent then writes the file
+in the correct place.
+
+---
+
+## Continuous integration
+
+```bash
+keystone-swift install ci
+```
+
+This writes a GitHub Actions workflow. The workflow checks the changes in a pull
+request. It writes an annotation on each line that breaks a rule.
+
+---
 
 ## Limits
 
-Manifests are parsed, not evaluated. A `Package.swift` that computes its target list yields nothing
-rather than a guess — `swift package dump-package` would be exact but needs the network and takes
-seconds, which is unusable in a hook that must answer before a write lands.
+The tool has these limits today. `TODO.md` records each one.
 
-A type name declared in more than one module is skipped by the rules that read references, rather
-than resolved to one of them and be right half the time.
+- **XcodeGen projects.** The tool cannot read a `project.yml` file. A project
+  that generates its Xcode project, and does not commit it, has no modules that
+  the tool can find.
+- **Tuist projects.** The tool cannot read `Project.swift` or `Workspace.swift`.
+- **Objective-C files.** The tool reads Swift only. It does not count a `.m` or
+  a `.h` file. Thus `status` can tell you that 100% of the Swift files have a
+  layer, in a project that is half Objective-C.
+- **Behaviour.** The tool reads structure. See
+  [What the tool does not detect](#what-the-tool-does-not-detect).
 
-Xcode's implicit target dependencies are not written down anywhere readable, so
-`imports-are-declared` only applies to SwiftPM targets.
-
-The Kiro integration reports after the write rather than refusing before it. That is Kiro's hook
-model, not a limitation that will be fixed here.
+---
 
 ## Sources
 
-Rules cite the work they rest on, so you can go and disagree with the source rather than with the
-tool.
+Each rule names the work that it comes from. The tool does not invent
+architecture. These are the sources:
 
 - Robert C. Martin, *Clean Architecture* (2017)
+- Eric Evans, *Domain-Driven Design* (2003)
 - Martin Fowler, *Patterns of Enterprise Application Architecture* (2002)
-- Mark Seemann & Steven van Deursen, *Dependency Injection: Principles, Practices, and Patterns* (2019)
+- Steve Freeman and Nat Pryce, *Growing Object-Oriented Software, Guided by
+  Tests* (2009)
+- Gerard Meszaros, *xUnit Test Patterns* (2007)
+- Mark Seemann and Steven van Deursen, *Dependency Injection* (2019)
+- Bertrand Meyer, *Object-Oriented Software Construction* (1997)
 
-The rule catalogue is adapted from a Konsist suite used in a production Android app, generalised so
-that no rule names a module, and extended with the graph-level checks that suite could not express.
+Run `keystone-swift rules` to read your architecture, with each source.
