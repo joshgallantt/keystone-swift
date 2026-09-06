@@ -22,6 +22,14 @@ import Foundation
 /// is occasionally unsure.
 public struct RoleAssignment: Sendable {
     public let fileRoles: [String: Role]
+    /// Files whose only evidence is what kind of target holds them.
+    ///
+    /// An app target is composition at its entry points, but a file five
+    /// directories inside one, in a folder the vocabulary does not recognise,
+    /// has told us nothing about itself. The role is a reasonable default for
+    /// the target and no statement at all about the file, and a rule that
+    /// compares two layers must know the difference.
+    public let placedByTargetKind: Set<String>
     public let moduleRoles: [String: Role]
     public let unclassifiedFiles: [String]
     /// How each module was placed, for reports that must show their working.
@@ -67,12 +75,15 @@ public struct RoleAssignment: Sendable {
         // guess about one path segment. The fact goes first. It did not, and an
         // app called `ModularSwiftUI` had its own `AppDelegate` filed under
         // presentation.
+        var placedByTargetKind: Set<String> = []
         for file in swiftFiles where fileRoles[file] == nil {
             guard let module = graph.module(owning: file) else { continue }
             if module.kind.isTest, known.contains(Role.tests.rawValue) {
                 fileRoles[file] = .tests
+                placedByTargetKind.insert(file)
             } else if module.kind == .app, known.contains(Role.composition.rawValue) {
                 fileRoles[file] = .composition
+                placedByTargetKind.insert(file)
             }
         }
 
@@ -135,6 +146,7 @@ public struct RoleAssignment: Sendable {
         }
 
         self.fileRoles = fileRoles
+        self.placedByTargetKind = placedByTargetKind
         self.moduleRoles = moduleRoles
         self.unclassifiedFiles = unclassified.sorted()
         self.evidence = evidence
