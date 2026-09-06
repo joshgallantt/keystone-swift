@@ -13,6 +13,7 @@ public enum RuleRegistry {
         ThirdPartyBoundaryRule(),
         RestrictedSymbolRule(),
         TypeReferenceBoundaryRule(),
+        LayerMixtureRule(),
         ModuleCycleRule(),
         DeclarationPlacementRule(),
         ExtensionBoundaryRule(),

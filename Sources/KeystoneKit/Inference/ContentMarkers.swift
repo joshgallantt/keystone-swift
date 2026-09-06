@@ -54,14 +54,15 @@ public enum ContentMarkers {
     static let testConformances: Set<String> = ["XCTestCase"]
     static let testImports: Set<String> = ["XCTest", "Testing"]
 
-    /// Every layer whose machinery this file is built on.
+    /// Every layer whose machinery this file is built on, and the thing that
+    /// said so.
     ///
     /// More than one is not an ambiguity to resolve. A file holding a screen and
     /// a network call is two layers in one file, and the contradiction is worth
-    /// reporting rather than voting on — so this returns the set, and the caller
-    /// decides.
-    public static func layers(in facts: SourceFacts) -> Set<Role> {
-        var found: Set<Role> = []
+    /// reporting rather than voting on — so this returns them all, with a
+    /// witness for each, and the caller decides.
+    public static func layers(in facts: SourceFacts) -> [Role: String] {
+        var found: [Role: String] = [:]
 
         let imports = Set(facts.imports.map(\.module))
         let referenced = Set(facts.typeReferences.map(\.name))
@@ -69,23 +70,24 @@ public enum ContentMarkers {
         let conformances = Set(declarations.flatMap(\.inheritedTypes))
         let attributes = Set(declarations.flatMap(\.attributes))
 
-        if !conformances.isDisjoint(with: testConformances) || !imports.isDisjoint(with: testImports) {
-            found.insert(.tests)
+        func witness(_ role: Role, _ candidates: Set<String>, in present: Set<String>, as shape: (String) -> String) {
+            guard found[role] == nil, let name = present.intersection(candidates).sorted().first else { return }
+            found[role] = shape(name)
         }
-        if !conformances.isDisjoint(with: presentationConformances)
-            || !attributes.isDisjoint(with: presentationAttributes) {
-            found.insert(.presentation)
-        }
-        if !conformances.isDisjoint(with: compositionConformances)
-            || !attributes.isDisjoint(with: compositionAttributes) {
-            found.insert(.composition)
-        }
-        if !conformances.isDisjoint(with: dataConformances)
-            || !attributes.isDisjoint(with: dataAttributes)
-            || !imports.isDisjoint(with: dataImports)
-            || !referenced.isDisjoint(with: dataSymbols) {
-            found.insert(.data)
-        }
+
+        witness(.tests, testConformances, in: conformances) { "`: \($0)`" }
+        witness(.tests, testImports, in: imports) { "`import \($0)`" }
+
+        witness(.presentation, presentationConformances, in: conformances) { "`: \($0)`" }
+        witness(.presentation, presentationAttributes, in: attributes) { "`@\($0)`" }
+
+        witness(.composition, compositionConformances, in: conformances) { "`: \($0)`" }
+        witness(.composition, compositionAttributes, in: attributes) { "`@\($0)`" }
+
+        witness(.data, dataConformances, in: conformances) { "`: \($0)`" }
+        witness(.data, dataAttributes, in: attributes) { "`@\($0)`" }
+        witness(.data, dataImports, in: imports) { "`import \($0)`" }
+        witness(.data, dataSymbols, in: referenced) { "`\($0)`" }
 
         return found
     }
@@ -97,6 +99,6 @@ public enum ContentMarkers {
     /// belongs, it has told us it is in the wrong shape.
     public static func role(of facts: SourceFacts) -> Role? {
         let layers = ContentMarkers.layers(in: facts)
-        return layers.count == 1 ? layers.first : nil
+        return layers.count == 1 ? layers.keys.first : nil
     }
 }
