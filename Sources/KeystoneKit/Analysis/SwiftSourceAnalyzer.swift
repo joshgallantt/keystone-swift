@@ -80,7 +80,7 @@ private final class FactVisitor: SyntaxVisitor {
     }
 
     override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
-        record(name: node.name.text, kind: .protocol, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause)
+        record(name: node.name.text, kind: .protocol, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause, attributes: node.attributes)
         nestingDepth += 1
         return .visitChildren
     }
@@ -88,7 +88,7 @@ private final class FactVisitor: SyntaxVisitor {
     override func visitPost(_ node: ProtocolDeclSyntax) { nestingDepth -= 1 }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        record(name: node.name.text, kind: .struct, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause)
+        record(name: node.name.text, kind: .struct, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause, attributes: node.attributes)
         nestingDepth += 1
         return .visitChildren
     }
@@ -96,7 +96,7 @@ private final class FactVisitor: SyntaxVisitor {
     override func visitPost(_ node: StructDeclSyntax) { nestingDepth -= 1 }
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        record(name: node.name.text, kind: .class, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause)
+        record(name: node.name.text, kind: .class, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause, attributes: node.attributes)
         nestingDepth += 1
         return .visitChildren
     }
@@ -104,7 +104,7 @@ private final class FactVisitor: SyntaxVisitor {
     override func visitPost(_ node: ClassDeclSyntax) { nestingDepth -= 1 }
 
     override func visit(_ node: ActorDeclSyntax) -> SyntaxVisitorContinueKind {
-        record(name: node.name.text, kind: .actor, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause)
+        record(name: node.name.text, kind: .actor, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause, attributes: node.attributes)
         nestingDepth += 1
         return .visitChildren
     }
@@ -112,7 +112,7 @@ private final class FactVisitor: SyntaxVisitor {
     override func visitPost(_ node: ActorDeclSyntax) { nestingDepth -= 1 }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        record(name: node.name.text, kind: .enum, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause)
+        record(name: node.name.text, kind: .enum, node: node, modifiers: node.modifiers, inheritance: node.inheritanceClause, attributes: node.attributes)
         nestingDepth += 1
         return .visitChildren
     }
@@ -120,7 +120,7 @@ private final class FactVisitor: SyntaxVisitor {
     override func visitPost(_ node: EnumDeclSyntax) { nestingDepth -= 1 }
 
     override func visit(_ node: TypeAliasDeclSyntax) -> SyntaxVisitorContinueKind {
-        record(name: node.name.text, kind: .typealias_, node: node, modifiers: node.modifiers, inheritance: nil)
+        record(name: node.name.text, kind: .typealias_, node: node, modifiers: node.modifiers, inheritance: nil, attributes: node.attributes)
         return .visitChildren
     }
 
@@ -221,7 +221,8 @@ private final class FactVisitor: SyntaxVisitor {
         kind: DeclarationKind,
         node: some SyntaxProtocol,
         modifiers: DeclModifierListSyntax,
-        inheritance: InheritanceClauseSyntax?
+        inheritance: InheritanceClauseSyntax?,
+        attributes: AttributeListSyntax? = nil
     ) {
         declarations.append(
             Declaration(
@@ -230,9 +231,23 @@ private final class FactVisitor: SyntaxVisitor {
                 line: line(node),
                 accessLevel: FactVisitor.accessLevel(modifiers),
                 inheritedTypes: inheritance?.inheritedTypes.compactMap { FactVisitor.declaredTypeName($0.type) } ?? [],
-                isTopLevel: nestingDepth == 0
+                isTopLevel: nestingDepth == 0,
+                attributes: FactVisitor.attributeNames(attributes)
             )
         )
+    }
+
+    /// Attribute names only. `@Test("…")` and `@available(iOS 17, *)` carry
+    /// arguments that say nothing about a layer.
+    static func attributeNames(_ attributes: AttributeListSyntax?) -> [String] {
+        guard let attributes else { return [] }
+        return attributes.compactMap { element in
+            guard let attribute = element.as(AttributeSyntax.self) else { return nil }
+            if let identifier = attribute.attributeName.as(IdentifierTypeSyntax.self) {
+                return identifier.name.text
+            }
+            return FactVisitor.rootTypeName(attribute.attributeName)
+        }
     }
 
     /// The sentence in `@Test("…")`, ignoring traits that follow it.

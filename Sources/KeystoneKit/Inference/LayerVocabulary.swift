@@ -56,8 +56,28 @@ public enum LayerVocabulary {
     /// The role a path suggests, reading from the most specific directory
     /// outward. `Sources/DI` beats the `UI/` folder above it, because the
     /// nearer name is the more considered one.
+    /// The nearest segment that says anything, reading outward.
+    ///
+    /// Distance decides before the kind of reading does. Trying `exactMatch`
+    /// over the whole path first meant an ancestor could beat the segment next
+    /// to the file: the reference project's `AuthUIDI` target has a source root
+    /// at `UI/AuthUI/Sources/AuthUIDI`, and the `UI` three levels up won over
+    /// the `DI` on the end of the directory itself — so three `*DI` modules
+    /// read as presentation while nineteen read as composition.
+    ///
+    /// A suffix is still only read on the nearest segment. That is the weakest
+    /// signal there is, and letting it run up the tree is what made every file
+    /// under a folder called `ModularSwiftUI` a screen.
     public static func match(forDirectory directory: String) -> Match? {
-        exactMatch(forDirectory: directory) ?? suffixMatch(forDirectory: directory)
+        let segments = directory.split(separator: "/").map(String.init)
+        if let segment = segments.first(where: isTestSegment) {
+            return Match(role: .tests, segment: segment)
+        }
+        for (offset, segment) in segments.reversed().enumerated() {
+            if let role = byName[segment] { return Match(role: role, segment: segment) }
+            if offset == 0, let role = suffixRole(segment) { return Match(role: role, segment: segment) }
+        }
+        return nil
     }
 
     /// A directory that says its layer outright. Deliberate, so it outranks

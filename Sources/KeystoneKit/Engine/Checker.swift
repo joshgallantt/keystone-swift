@@ -47,22 +47,32 @@ public struct Checker: Sendable {
         let root = Paths.canonical(root)
         let scanner = ProjectScanner(fileSystem: fileSystem)
         let scanned = scanner.scan(root: root, configuration: configuration)
+        // Parse before placing. A file's contents are evidence about its layer,
+        // so the facts have to exist before the layers are decided.
+        var parsed: [String: SourceFacts] = [:]
+        parsed.reserveCapacity(scanned.swiftFiles.count)
+        for path in scanned.swiftFiles {
+            guard let content = fileSystem.contents(of: Paths.absolute(path, in: root)) else { continue }
+            parsed[path] = analyzer.analyze(path: path, content: content)
+        }
+
         let assignment = RoleAssignment(
             configuration: configuration,
             graph: scanned.graph,
-            swiftFiles: scanned.swiftFiles
+            swiftFiles: scanned.swiftFiles,
+            facts: parsed
         )
 
         var files: [AnalyzedFile] = []
-        files.reserveCapacity(scanned.swiftFiles.count)
+        files.reserveCapacity(parsed.count)
         for path in scanned.swiftFiles {
-            guard let content = fileSystem.contents(of: Paths.absolute(path, in: root)) else { continue }
+            guard let facts = parsed[path] else { continue }
             files.append(
                 AnalyzedFile(
                     path: path,
                     role: assignment.role(ofFile: path),
                     module: scanned.graph.module(owning: path),
-                    facts: analyzer.analyze(path: path, content: content)
+                    facts: facts
                 )
             )
         }
@@ -114,17 +124,19 @@ public struct Checker: Sendable {
             known.sort()
         }
 
+        let pendingFacts = analyzer.analyze(path: pending.path, content: pending.content)
         let assignment = RoleAssignment(
             configuration: configuration,
             graph: scanned.graph,
-            swiftFiles: known
+            swiftFiles: known,
+            facts: [pending.path: pendingFacts]
         )
 
         let file = AnalyzedFile(
             path: pending.path,
             role: assignment.role(ofFile: pending.path),
             module: scanned.graph.module(owning: pending.path),
-            facts: analyzer.analyze(path: pending.path, content: pending.content)
+            facts: pendingFacts
         )
 
         let context = RuleContext(

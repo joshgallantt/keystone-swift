@@ -18,6 +18,24 @@
 
 ## Missing concepts
 
+- **Two placement implementations, and they now disagree.** `RoleAssignment`
+  places files and modules for `check`, and reads file contents to do it.
+  `RoleInference` does the same job for `init` and never parses anything, so
+  `init --dry-run` reports "nothing placed it" for modules that `check` places
+  confidently from their conformances. One of them has to go, and it is
+  `RoleInference` — `Commands.initialise` should build a `RoleAssignment` the
+  way `Checker` does.
+- **A mixed file is reported as nothing rather than as a mixture.**
+  `ContentMarkers.layers(in:)` returns every layer whose machinery a file is
+  built on, and `role(of:)` uses it only to abstain when there is more than one.
+  A file holding a screen and a store is a layering fault inside one file, and
+  the set is already computed — it wants a rule.
+- **`sources:` subpaths are not source roots.** A SwiftPM target written as
+  `path: "Sources", sources: ["AuthUIHost", "AuthUIDI"]` reports one root,
+  `Sources`, so the three `*DI` modules in the reference project read as
+  presentation from the `UI` above them while nineteen siblings read as
+  composition.
+
 - **XcodeGen projects are unreadable.** `bitwarden/ios` — 2,761 Swift files —
   defines itself in `project-bwa.yml`, `project-pm.yml` and `project-common.yml`
   and commits no `.xcodeproj`, so the tool finds no modules and classifies 64%

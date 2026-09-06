@@ -30,6 +30,8 @@ public struct RoleAssignment: Sendable {
     /// the target and no statement at all about the file, and a rule that
     /// compares two layers must know the difference.
     public let placedByTargetKind: Set<String>
+    /// Files placed by what they are made of rather than by what they are called.
+    public let placedByContents: Set<String>
     public let moduleRoles: [String: Role]
     public let unclassifiedFiles: [String]
     /// How each module was placed, for reports that must show their working.
@@ -37,7 +39,18 @@ public struct RoleAssignment: Sendable {
 
     private let configuration: Configuration
 
-    public init(configuration: Configuration, graph: ProjectGraph, swiftFiles: [String]) {
+    /// `facts` is what has been parsed. It may be empty, or hold one file: the
+    /// pre-write hook parses only the file being written, so it places that file
+    /// from its own contents and reads every other module from names alone. The
+    /// hook is therefore the more cautious of the two — it places less, so it
+    /// judges less, and a check that cannot decide permits the write. CI, which
+    /// has parsed everything, is the authority.
+    public init(
+        configuration: Configuration,
+        graph: ProjectGraph,
+        swiftFiles: [String],
+        facts: [String: SourceFacts] = [:]
+    ) {
         self.configuration = configuration
 
         let declared = configuration.orderedRoles
@@ -87,6 +100,24 @@ public struct RoleAssignment: Sendable {
             }
         }
 
+        // Then what the file itself is made of. A type conforming to `View`, an
+        // `@main`, an `NSManagedObject`, a `URLSession` — these are the
+        // platform's own vocabulary, and a file that adopts them has said which
+        // layer's machinery it is built on. It sits below the build system,
+        // which states a fact about a whole target, and above a name suffix,
+        // which is the weakest reading there is.
+        //
+        // It can never yield `domain` or `library`: those have no marker, being
+        // what is left when a file touches no screen, no store and no wire.
+        var placedByContents: Set<String> = []
+        for file in swiftFiles where fileRoles[file] == nil {
+            guard let facts = facts[file],
+                  let role = ContentMarkers.role(of: facts),
+                  known.contains(role.rawValue) else { continue }
+            fileRoles[file] = role
+            placedByContents.insert(file)
+        }
+
         // Only then the weakest reading of a name.
         for file in swiftFiles where fileRoles[file] == nil {
             guard let match = LayerVocabulary.suffixMatch(forDirectory: Paths.directory(of: file)),
@@ -113,13 +144,40 @@ public struct RoleAssignment: Sendable {
                 evidence[module.name] = "application target"
                 continue
             }
-            if let match = module.sourceRoots.lazy.compactMap(LayerVocabulary.match(forDirectory:)).first,
-               known.contains(match.role.rawValue) {
+            // Every source root must agree. Reading only the first one in
+            // array order placed home-assistant's 600-file `Shared-iOS` in
+            // composition on the word `App`, from `Sources/App/Onboarding` —
+            // the first of twenty-seven roots, twenty-six of which were never
+            // looked at, including `Sources/Shared/Domain`. It also split this
+            // repository's own reference project, where three `*DI` modules
+            // read as presentation and nineteen as composition purely on which
+            // root happened to come first. A module whose roots disagree is a
+            // module spanning layers, and the honest answer is to say nothing
+            // and let its files speak for themselves.
+            let roots = module.sourceRoots.compactMap(LayerVocabulary.match(forDirectory:))
+                .filter { known.contains($0.role.rawValue) }
+            let agreed = Set(roots.map(\.role))
+            if agreed.count == 1, let match = roots.first {
                 moduleRoles[module.name] = match.role
-                evidence[module.name] = "directory named `\(match.segment)`"
+                // Exact and suffix readings were reported with the same
+                // sentence, so a reader could not tell the strongest name
+                // evidence from the weakest.
+                let exact = LayerVocabulary.exactMatch(forDirectory: module.sourceRoots.first ?? "") != nil
+                evidence[module.name] = exact
+                    ? "directory named `\(match.segment)`"
+                    : "a directory name ending in `\(match.segment.suffix(2))`"
                 continue
             }
-            if let modal = RoleAssignment.modal((filesByModule[module.name] ?? []).compactMap { fileRoles[$0] }) {
+
+            // The modal must be a majority of the module's FILES, not of the
+            // few that happened to hold a role. One file of fifty-four placed
+            // IceCubesApp's entity package in composition, and one of a hundred
+            // and nineteen placed duckduckgo's `Core` in tests — under an
+            // evidence string that read "most of its files are". It was not
+            // true, and it is now checked.
+            let files = filesByModule[module.name] ?? []
+            if let modal = RoleAssignment.modal(files.compactMap { fileRoles[$0] },
+                                                outOf: files.count) {
                 moduleRoles[module.name] = modal
                 evidence[module.name] = "most of its files are `\(modal)`"
             }
@@ -128,12 +186,29 @@ public struct RoleAssignment: Sendable {
         // What is left is placed by what it depends on. A module that reaches
         // both a domain and a data module is wiring them together, whatever it
         // is called.
-        for module in graph.orderedModules where moduleRoles[module.name] == nil {
-            let reached = Set((graph.edges[module.name] ?? []).compactMap { moduleRoles[$0] })
-            guard let (role, why) = RoleAssignment.fromShape(reached, isLeaf: (graph.edges[module.name] ?? []).isEmpty),
+        // Read from a snapshot. This loop used to mutate the dictionary it was
+        // reading, in alphabetical order, so one guess became the evidence for
+        // the next: WordPress's `BuildSettingsKit` became domain because
+        // nothing depended on it, and then `DesignSystem` — SwiftUI, full of
+        // `: View` — became data because it depended on a domain module.
+        let placed = moduleRoles
+        var derived: [String: (Role, String)] = [:]
+        for module in graph.orderedModules where placed[module.name] == nil {
+            let edges = graph.edges[module.name] ?? []
+            let reached = Set(edges.compactMap { placed[$0] })
+            // A module that pulls in somebody else's package is not the stable
+            // centre of anything; the domain refuses third-party dependencies
+            // outright. Twenty of the seventy-six modules called "a candidate
+            // for the stable centre" declare one, so the tool was reading a
+            // layer off an absence it would then punish them for.
+            let isLeaf = edges.isEmpty && (graph.externalEdges[module.name] ?? []).isEmpty
+            guard let (role, why) = RoleAssignment.fromShape(reached, isLeaf: isLeaf),
                   known.contains(role.rawValue) else { continue }
-            moduleRoles[module.name] = role
-            evidence[module.name] = why
+            derived[module.name] = (role, why)
+        }
+        for (name, placement) in derived {
+            moduleRoles[name] = placement.0
+            evidence[name] = placement.1
         }
 
         var unclassified: [String] = []
@@ -147,6 +222,7 @@ public struct RoleAssignment: Sendable {
 
         self.fileRoles = fileRoles
         self.placedByTargetKind = placedByTargetKind
+        self.placedByContents = placedByContents
         self.moduleRoles = moduleRoles
         self.unclassifiedFiles = unclassified.sorted()
         self.evidence = evidence
@@ -169,10 +245,25 @@ public struct RoleAssignment: Sendable {
         if reached.contains(.domain) {
             return (.data, "depends on a domain module without being a screen")
         }
-        if isLeaf {
-            return (.domain, "depends on nothing, so it is a candidate for the stable centre")
-        }
-        return (.domain, "no clear evidence — review this one")
+        // A module that depends on nothing is not thereby the stable centre.
+        // Measured across thirty-two apps, this arm placed seventy-six modules,
+        // and the ones it named included an API client, a UserDefaults wrapper,
+        // a GRDB persistence layer, a date-formatting library and a SwiftUI
+        // style guide. Depending on nothing is a fact about a module's edges
+        // and says nothing whatever about its layer.
+        //
+        // The final arm said so in its own evidence string — "no clear
+        // evidence" — and then returned `domain` anyway, which is the strictest
+        // layer in the preset: it refuses third-party packages, every UI,
+        // persistence and networking framework, and URLSession. So the least
+        // supported placement in the tool was also the one held to the highest
+        // standard, and it produced errors at scale about modules that were
+        // never the domain.
+        //
+        // Both are gone. A module the shape cannot place is left unplaced, and
+        // its files are reported once as unclassified rather than judged
+        // against a layer nobody established.
+        return nil
     }
 
     /// The claim with the most literal characters wins, so a specific override
@@ -194,13 +285,24 @@ public struct RoleAssignment: Sendable {
     /// Ties break toward the role that sorts first, so a module split evenly
     /// lands somewhere predictable rather than somewhere that depends on
     /// file-system ordering.
-    static func modal(_ roles: [Role]) -> Role? {
-        guard !roles.isEmpty else { return nil }
+    /// The role held by most of a module's files, or nothing.
+    ///
+    /// `outOf` is every file the module owns, including those holding no role
+    /// at all. A role held by one file in fifty-four is not what most of them
+    /// are, and saying so was how a package of entities became the composition
+    /// layer.
+    ///
+    /// A tie decides nothing. It used to break by `Role.conventionalOrder`,
+    /// which put `domain` first, so an evenly split module silently became the
+    /// stable centre.
+    static func modal(_ roles: [Role], outOf total: Int) -> Role? {
+        guard !roles.isEmpty, total > 0 else { return nil }
         var counts: [Role: Int] = [:]
         for role in roles { counts[role, default: 0] += 1 }
-        return counts
-            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
-            .first?
-            .key
+        let ranked = counts.sorted { $0.value > $1.value }
+        guard let winner = ranked.first else { return nil }
+        if ranked.count > 1, ranked[1].value == winner.value { return nil }
+        guard winner.value * 2 > total else { return nil }
+        return winner.key
     }
 }

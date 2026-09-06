@@ -49,6 +49,10 @@ public struct Declaration: Sendable, Hashable {
     /// the type's body at all, so the extension is the language's requirement
     /// rather than the author's preference.
     public var isConstrained: Bool
+    /// The attribute names written on the declaration, without their arguments.
+    /// `@main` says a type is an entry point; `@Observable` and `@Model` say
+    /// which layer's machinery a type is built on.
+    public var attributes: [String]
 
     public init(
         name: String,
@@ -58,7 +62,8 @@ public struct Declaration: Sendable, Hashable {
         inheritedTypes: [String] = [],
         isTopLevel: Bool = true,
         isStatic: Bool = false,
-        isConstrained: Bool = false
+        isConstrained: Bool = false,
+        attributes: [String] = []
     ) {
         self.name = name
         self.kind = kind
@@ -68,6 +73,7 @@ public struct Declaration: Sendable, Hashable {
         self.isTopLevel = isTopLevel
         self.isStatic = isStatic
         self.isConstrained = isConstrained
+        self.attributes = attributes
     }
 
     /// Kinds that declare a type a boundary can be drawn around. A function or
