@@ -55,35 +55,39 @@ public struct PackageManifestParser: Sendable {
             }
         }
 
+        // Read from the whole file, not from a literal array under `products:`
+        // and `targets:`. A manifest is a Swift program and real ones use it —
+        // `targets: XcodeSupport.targets + [...]` in WordPress, a helper in
+        // others, a `#if` in some. The declarations are still literally present;
+        // only their position in the syntax tree differs.
         var products: [ProductInfo] = []
-        if let productList = SyntaxReader.argument("products", in: arguments) {
-            for element in SyntaxReader.arrayElements(productList) {
-                guard let call = SyntaxReader.call(element),
-                      let nameExpression = SyntaxReader.argument("name", in: call.arguments),
-                      let productName = SyntaxReader.stringValue(nameExpression) else { continue }
-                let targets = SyntaxReader.argument("targets", in: call.arguments)
-                    .map(SyntaxReader.stringArray) ?? []
-                products.append(ProductInfo(name: productName, targets: targets, packageName: name))
-            }
+        for call in SyntaxReader.calls(named: ["library", "executable"], under: tree) {
+            guard let nameExpression = SyntaxReader.argument("name", in: call.arguments),
+                  let productName = SyntaxReader.stringValue(nameExpression) else { continue }
+            let targets = SyntaxReader.argument("targets", in: call.arguments)
+                .map(SyntaxReader.stringArray) ?? []
+            products.append(ProductInfo(name: productName, targets: targets, packageName: name))
         }
 
         var targets: [Module] = []
-        if let targetList = SyntaxReader.argument("targets", in: arguments) {
-            for element in SyntaxReader.arrayElements(targetList) {
-                guard let call = SyntaxReader.call(element),
-                      let kind = PackageManifestParser.kind(forCall: call.name) else { continue }
-                let line = element.startLocation(converter: converter).line
-                if let module = target(
-                    from: call.arguments,
-                    kind: kind,
-                    packageName: name,
-                    directory: directory,
-                    manifestPath: manifestPath,
-                    line: line,
-                    root: root
-                ) {
-                    targets.append(module)
-                }
+        var seen: Set<String> = []
+        for call in SyntaxReader.calls(
+            named: ["target", "macro", "executableTarget", "testTarget", "systemLibrary", "binaryTarget", "plugin"],
+            under: tree
+        ) {
+            guard let callee = SyntaxReader.memberName(ExprSyntax(call.calledExpression)),
+                  let kind = PackageManifestParser.kind(forCall: callee) else { continue }
+            let line = call.startLocation(converter: converter).line
+            if let module = target(
+                from: call.arguments,
+                kind: kind,
+                packageName: name,
+                directory: directory,
+                manifestPath: manifestPath,
+                line: line,
+                root: root
+            ), seen.insert(module.name).inserted {
+                targets.append(module)
             }
         }
 

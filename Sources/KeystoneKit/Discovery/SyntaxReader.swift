@@ -53,4 +53,49 @@ public enum SyntaxReader {
     public static func memberName(_ expression: ExprSyntax) -> String? {
         expression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
     }
+
+    /// Every `.target(…)`-shaped call anywhere beneath a node, in source order,
+    /// ignoring any that sit inside a `dependencies:` argument.
+    ///
+    /// A manifest is a Swift program, and real ones use it. WordPress writes
+    /// `targets: XcodeSupport.targets + [...]`, bitwarden and others build the
+    /// list in a helper, and a `#if` may add one. Reading only a literal array
+    /// meant a 2,700-file package resolved to no modules at all, and every file
+    /// in it went unclassified — so the tool reported a codebase it had not
+    /// managed to read as one with nothing in it.
+    ///
+    /// The `dependencies:` exclusion is what keeps `.target(name: "Foo")` as a
+    /// dependency from being counted as a declaration of one; the two calls are
+    /// spelled identically and only their position tells them apart.
+    public static func calls(named names: Set<String>, under node: some SyntaxProtocol) -> [FunctionCallExprSyntax] {
+        var found: [FunctionCallExprSyntax] = []
+        collect(names: names, node: Syntax(node), insideDependencies: false, into: &found)
+        return found
+    }
+
+    private static func collect(
+        names: Set<String>,
+        node: Syntax,
+        insideDependencies: Bool,
+        into found: inout [FunctionCallExprSyntax]
+    ) {
+        var inside = insideDependencies
+        if let labelled = node.as(LabeledExprSyntax.self), let label = labelled.label?.text {
+            if label == "dependencies" { inside = true }
+            // A nested `targets:` re-opens the door: a product's `targets:` is a
+            // list of names, and a package's is a list of declarations.
+            if label == "targets" || label == "products" { inside = false }
+        }
+
+        if !inside,
+           let call = node.as(FunctionCallExprSyntax.self),
+           let name = memberName(ExprSyntax(call.calledExpression)),
+           names.contains(name) {
+            found.append(call)
+        }
+
+        for child in node.children(viewMode: .sourceAccurate) {
+            collect(names: names, node: child, insideDependencies: inside, into: &found)
+        }
+    }
 }

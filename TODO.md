@@ -18,6 +18,29 @@
 
 ## Missing concepts
 
+- **XcodeGen projects are unreadable.** `bitwarden/ios` — 2,761 Swift files —
+  defines itself in `project-bwa.yml`, `project-pm.yml` and `project-common.yml`
+  and commits no `.xcodeproj`, so the tool finds no modules and classifies 64%
+  of the tree. XcodeGen's spec is a YAML map of `targets:` with `sources:`,
+  `dependencies:` and `type:`, which is a literal read with no inference in it.
+  Held back deliberately: the SwiftPM reader was the larger win and shipped
+  first.
+- **Tuist projects are unreadable.** `JonatanOrtiz/Similarity` classifies 31%.
+  `Project.swift` and `Workspace.swift` are Swift programs declaring
+  `Target(name:sources:dependencies:)`, so the same tree-walk that now reads a
+  computed `Package.swift` would read them — but Tuist's manifests import a
+  `ProjectDescription` module with its own vocabulary, and the graph lives
+  across `Workspace.swift` plus one `Project.swift` per module. Worth doing
+  after XcodeGen, which is the simpler shape.
+- **`.m` and `.h` files are invisible.** `ProjectScanner` keeps only `*.swift`,
+  and `UnclassifiedFileRule` iterates the files that survived that filter, so an
+  Objective-C file is not merely unchecked — it is not even reported as
+  unclassified. `StatusCommand` then divides classified by classified-plus-
+  unclassified over Swift alone, so a codebase that is 60% Objective-C is told
+  "100% of Swift files are inside the architecture", which is the exact silence
+  `UnclassifiedFileRule` exists to prevent. 216 such files sit in the 32-app
+  sample.
+
 - ~~**`testSupport` role.**~~ Done, along with `visibleTo` — the inverse of
   `mayDependOn`, needed because the layer most in need of stopping is the
   composition root, which may depend on everything by definition.
