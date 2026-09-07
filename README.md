@@ -442,7 +442,7 @@ Copy one file to the root of your repository as `.swiftlint.yml`.
 
 SwiftLint custom rules are regular expressions. They cannot read the module
 graph, and they match text in a comment or in a string. So the layer rules there
-are a first line that runs in Xcode while you write, and this tool does the part
+are a first line. They run in Xcode while you write. This tool does the part
 that needs the graph. See `swiftlint/README.md`.
 
 ---
