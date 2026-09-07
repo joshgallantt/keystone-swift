@@ -18,6 +18,50 @@
 
 ## Missing concepts
 
+### From surveying what else exists (September 2026)
+
+Seventy tools surveyed, forty claiming to enforce architecture. Four ideas in
+that field are worth taking, and one is worth refusing.
+
+- **A graph command.** `solid-like-a-rock` renders the module graph as Mermaid
+  or DOT with the violating edges in red. This tool has the whole graph in
+  `ProjectGraph` and the violations beside it, and prints neither. A picture of
+  the layering with the bad edges drawn in is the one output a person can take
+  into a room and argue from, and it is close to free to produce.
+
+- **A `freeze` that narrows the rules, not the findings.** `baseline` records
+  today's violations as accepted debt. `solid-like-a-rock init --freeze` does
+  something different and complementary: it tightens each layer's allow-list to
+  the imports that exist today, so the rules describe the project and any *new*
+  edge is refused. That is a better first move on a legacy codebase than
+  accepting three thousand findings, and the two should coexist.
+
+- **Suggest the mechanism that would make it impossible.** Bazel refuses a
+  disallowed dependency at analysis time; this tool reports one after the fact.
+  It cannot close that gap, but it knows enough to name the closer: a
+  `dependency-rule` finding could end by saying which of `internal import`
+  (SE-0409), the `package` access level (SE-0386), or a target split would stop
+  the violation recurring. Reporting is weaker than preventing, and a report
+  that points at the prevention is worth more than one that does not.
+
+- **An import that could be `internal`.** SE-0409 shipped in Swift 6 and is
+  entirely opt-in — the default is still `public`, contrary to a lot of what is
+  written about it — so almost nobody gets the enforcement. A rule finding an
+  import whose module is never named in a public signature would convert a
+  convention into a compiler-checked fact, which is the strongest move available
+  in pure Swift. NOT YET BUILDABLE: it needs per-declaration signature type
+  references tied to an access level, and `SourceFacts` has `typeReferences` per
+  file with no such tie. Half-implemented it would tell people to write
+  `internal import` and break their build, so it waits on that index.
+  `ImportReference` also does not record an access level yet, so an existing
+  `internal import` is invisible.
+
+- **Refused: bolt-on security rules.** `solid-like-a-rock` ships fourteen
+  (credentials in `UserDefaults`, disabled TLS validation, MD5). They are good
+  rules and they belong in a different tool. Seven rules were already deleted
+  from this one for reporting things that were not dependencies, boundaries or
+  layers, and adding a second unrelated category back would undo that.
+
 - **A type made `public` only so a test can see it.** Measured over the sample:
   2,643 test files, 89% of which already write `@testable import`. So a rule
   *requiring* `@testable` would fire on the remaining 300, and most of those are

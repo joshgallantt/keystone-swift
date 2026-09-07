@@ -135,7 +135,7 @@ condition with `unclassified-files`. The tool does not decide without evidence.
 
 ## What the tool detects
 
-There are 24 rules. This table puts them in groups by what they examine.
+There are 25 rules. This table puts them in groups by what they examine.
 
 ### Boundaries between layers
 
@@ -166,6 +166,7 @@ There are 24 rules. This table puts them in groups by what they examine.
 | `contract-before-implementation` | A type with the name of an implementation that implements nothing |
 | `layer-vocabulary` | A layer that uses the words of a different layer |
 | `imports-are-declared` | An `import` statement that the manifest does not declare |
+| `dependencies-are-used` | A dependency the manifest declares that no file imports |
 | `no-shared-singletons` | A global instance, which is a dependency that nobody declares |
 
 ### Tests
@@ -189,7 +190,7 @@ There are 24 rules. This table puts them in groups by what they examine.
 ### What the tool does not detect
 
 The tool reads structure. The tool does not read behaviour, and it does not
-compile your code. A project can obey all 24 rules and not build. Use the tool
+compile your code. A project can obey all 25 rules and not build. Use the tool
 with your build, not in place of your build.
 
 The tool does not report a style. The tool had rules for extensions, for the

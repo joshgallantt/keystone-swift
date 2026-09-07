@@ -18,6 +18,7 @@ public enum RuleRegistry {
         DeclarationPlacementRule(),
         ExtensionBoundaryRule(),
         UndeclaredImportRule(),
+        UnusedDependencyRule(),
         ContractBeforeImplementationRule(),
         LayerVocabularyRule(),
         SharedSingletonRule(),

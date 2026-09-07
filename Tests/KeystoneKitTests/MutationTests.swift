@@ -168,6 +168,35 @@ struct BoundaryMutationTests {
         #expect(try fixture.check().erroringRules.contains("type-reference-boundary"))
     }
 
+    @Test("a dependency the manifest declares and nothing imports is a warning")
+    func declaredButUnusedDependenciesWarn() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        try fixture.replace(
+            "UI/CatalogUI/Package.swift",
+            "name: \"CatalogUI\",\n            dependencies: [",
+            with: "name: \"CatalogUI\",\n            dependencies: [\n                .product(name: \"Networking\", package: \"Networking\"),"
+        )
+
+        let result = try fixture.check()
+        #expect(result.warningRules.contains("dependencies-are-used"))
+        #expect(!result.erroringRules.contains("dependencies-are-used"))
+    }
+
+    @Test("a product vending several targets is judged as one manifest entry")
+    func aProductIsNotJudgedTargetByTarget() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        // `CatalogUIDI` depends on the `CatalogDI` product and imports one of
+        // the targets that product vends. Reading the resolved edges rather
+        // than the manifest entry called every other target in the product
+        // unused, which put fifty-one findings on a project whose manifests
+        // have no line to delete for any of them.
+        #expect(try fixture.check().violations.allSatisfy { $0.rule != "dependencies-are-used" })
+    }
+
     @Test("importing a module the manifest does not declare is a warning, not a refusal")
     func undeclaredImportsWarn() throws {
         let fixture = try Fixture.load("CleanApp")
