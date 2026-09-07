@@ -18,6 +18,17 @@
 
 ## Missing concepts
 
+- **The two required compiler settings are not checked.** The README now states
+  `MemberImportVisibility` and `InternalImportsByDefault` as requirements, and
+  nothing verifies either one, which is precisely the shape this tool exists to
+  refuse. `MemberImportVisibility` is the one that matters to correctness:
+  without it a file can use an extension member of a module it does not import,
+  so the file depends on something `dependency-rule` cannot see, and a blind
+  rule reports clean. `PackageManifestParser` reads targets already but does not
+  capture `swiftSettings`, so this needs the parser extended and then a rule —
+  a warning, since neither setting is available before Swift 6 and a project
+  cannot always take them at once.
+
 ### From surveying what else exists (September 2026)
 
 Seventy tools surveyed, forty claiming to enforce architecture. Four ideas in

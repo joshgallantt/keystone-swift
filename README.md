@@ -45,7 +45,7 @@ Each report of a violation gives you four items:
 [The configuration file](#the-configuration-file) ·
 [Agents](#agents) ·
 [Continuous integration](#continuous-integration) ·
-[Compiler features to use with this tool](#compiler-features-to-use-with-this-tool) ·
+[Compiler settings this tool requires](#compiler-settings-this-tool-requires) ·
 [A SwiftLint config to go with it](#a-swiftlint-config-to-go-with-it) ·
 [Evidence](#evidence) ·
 [Limits](#limits) ·
@@ -60,8 +60,9 @@ control hides. This is a strong control. But the compiler cannot see the
 difference between a screen and a business rule. Two types in one module are
 equal to the compiler.
 
-The compiler also does less than most people expect. See
-[Compiler features to use with this tool](#compiler-features-to-use-with-this-tool).
+The compiler also does less than most people expect, and this tool has two
+settings it needs you to turn on. See
+[Compiler settings this tool requires](#compiler-settings-this-tool-requires).
 
 keystone-swift adds that difference. The tool puts each file into a layer. Then
 the tool applies the rules of that layer.
@@ -377,12 +378,42 @@ with no configuration file. This is the most important test of each change.
 
 ---
 
-## Compiler features to use with this tool
+## Compiler settings this tool requires
 
-A rule the compiler applies is stronger than a rule this tool reports. Turn on
-what the compiler can do first. Then use this tool for the part that is left.
+A rule the compiler applies is stronger than a rule this tool reports. Set these
+first. Then use this tool for the part that is left.
 
-All of the results below were measured with Swift 6.3.3.
+All results below were measured with Swift 6.3.3.
+
+### Required
+
+Put both settings on each target in `Package.swift`:
+
+```swift
+.target(
+    name: "Catalog",
+    swiftSettings: [
+        .enableUpcomingFeature("MemberImportVisibility"),
+        .enableUpcomingFeature("InternalImportsByDefault"),
+    ]
+)
+```
+
+**`MemberImportVisibility` is a requirement of this tool, not a preference.**
+Without it, a file can use an extension member of a module that the file does
+not import. The file then depends on a module, and shows no `import` for it.
+This tool reads imports. So without this setting the tool has a blind area, and
+`dependency-rule` and `feature-isolation` can report that a file is clean when
+it is not.
+
+**`InternalImportsByDefault` is a requirement of the architecture.** It makes
+each `import` internal. A module then cannot pass a dependency through its own
+public API by accident, and the compiler gives an error if it tries. Swift 6
+does **not** do this for you: an `import` with no access level is still public,
+in Swift 5 and in Swift 6. Many articles say the opposite. They are wrong.
+
+The tool does not yet check that these settings are on. `TODO.md` records this.
+Until then, set them by hand and keep them in your review list.
 
 ### What the compiler does enforce
 
@@ -392,29 +423,9 @@ All of the results below were measured with Swift 6.3.3.
 | `package` access (SE-0386) | Use of the declaration from a different package. The compiler cannot find the name. |
 | `internal`, `private`, `fileprivate` | Use from outside the module, the type, or the file. |
 
-Two upcoming features are more important than they look. Turn them on for each
-target in `Package.swift`:
-
-```swift
-.target(
-    name: "Catalog",
-    swiftSettings: [
-        .enableUpcomingFeature("InternalImportsByDefault"),
-        .enableUpcomingFeature("MemberImportVisibility"),
-    ]
-)
-```
-
-- **`InternalImportsByDefault`** makes each `import` internal. Then a module
-  cannot pass a dependency through its own public API by accident. Swift 6 does
-  **not** do this for you: an `import` with no access level is still public, in
-  Swift 5 and in Swift 6. Many articles say the opposite. They are wrong.
-- **`MemberImportVisibility`** stops a file from using an extension member of a
-  module that the file does not import. Without it, a file can use a module and
-  show no `import` for it. This tool reads imports, so this feature makes this
-  tool more correct also.
-
 ### What the compiler does not enforce
+
+Do not rely on any of these. Each one was measured.
 
 | What people expect | What happens |
 | --- | --- |
