@@ -6,6 +6,10 @@ public struct CheckResult: Sendable {
     public var assignment: RoleAssignment
     public var graph: ProjectGraph
     public var scannedFiles: [String]
+    /// Every file that was parsed, with its role and its facts. `freeze` reads
+    /// the imports from here: a manifest edge and an `import` are different
+    /// evidence, and `dependency-rule` fires on the second.
+    public var files: [AnalyzedFile] = []
 
     public var errors: [Violation] { violations.errors }
     public var warnings: [Violation] { violations.warnings }
@@ -98,7 +102,8 @@ public struct Checker: Sendable {
             filesChecked: files.count,
             assignment: assignment,
             graph: scanned.graph,
-            scannedFiles: scanned.swiftFiles
+            scannedFiles: scanned.swiftFiles,
+            files: files
         )
     }
 
@@ -154,7 +159,8 @@ public struct Checker: Sendable {
             filesChecked: 1,
             assignment: assignment,
             graph: scanned.graph,
-            scannedFiles: known
+            scannedFiles: known,
+            files: [file]
         )
     }
 

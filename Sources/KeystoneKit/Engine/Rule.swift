@@ -110,31 +110,17 @@ public struct RuleContext: Sendable {
 
     /// Whether a module of `from` may depend on a module of `to`, accounting
     /// for the same-role policy and for whether the two live in one package.
+    ///
+    /// Forwards to `Configuration`, which is where the predicate lives so that
+    /// `graph` draws the same edge red that `target-dependency-rule` reports. A
+    /// picture that disagrees with the checker is worse than no picture.
     public func permits(
         from: Role,
         to: Role,
         fromPackage: String?,
         toPackage: String?
     ) -> DependencyVerdict {
-        guard let definition = configuration.definition(for: from) else { return .permitted }
-
-        if from == to {
-            switch definition.sameRole {
-            case .allow:
-                return .permitted
-            case .deny:
-                return .sameRoleRefused
-            case .denyAcrossPackages:
-                let same = fromPackage != nil && fromPackage == toPackage
-                return same ? .permitted : .sameRoleRefused
-            }
-        }
-
-        guard definition.mayDepend(on: to) else { return .roleRefused }
-        // The other layer also gets a say. `composition` may depend on anything,
-        // which is exactly why something has to be able to refuse it.
-        guard configuration.definition(for: to)?.isVisible(to: from) ?? true else { return .notVisible }
-        return .permitted
+        configuration.permits(from: from, to: to, fromPackage: fromPackage, toPackage: toPackage)
     }
 }
 

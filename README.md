@@ -42,6 +42,7 @@ Each report of a violation gives you four items:
 [Installation](#installation) ·
 [Commands](#commands) ·
 [How to start on an old project](#how-to-start-on-an-old-project) ·
+[Freeze and baseline](#freeze-and-how-it-differs-from-a-baseline) ·
 [The configuration file](#the-configuration-file) ·
 [Agents](#agents) ·
 [Continuous integration](#continuous-integration) ·
@@ -236,6 +237,8 @@ The tool does not need a configuration file. The tool reads your project.
 | `keystone-swift` | Examines the project. This is the default command. |
 | `keystone-swift status` | Shows the layers, the unclassified files, and the debt |
 | `keystone-swift baseline` | Records the violations of today as accepted debt |
+| `keystone-swift freeze` | Narrows each layer's allow-list to the edges that exist today |
+| `keystone-swift graph` | Prints the module graph as Mermaid, refused edges in red |
 | `keystone-swift rules` | Prints the architecture as a document |
 | `keystone-swift rules --list` | Shows each rule and its severity |
 | `keystone-swift init` | Writes `keystone-swift.json` for you to examine |
@@ -253,6 +256,35 @@ The tool does not need a configuration file. The tool reads your project.
 | `--commit <sha>` | What one commit changed |
 | `--at <ref>` | The project at a git reference |
 | `--file <path>` | One file. Send the content on stdin. |
+
+### Graph options
+
+| Option | What it does |
+| --- | --- |
+| (none) | Each module, in a box for its layer |
+| `--roles` | One node for each layer, with a count on each edge |
+| `--refused` | Only the refused edges, and the modules at each end |
+
+The output is Mermaid, and nothing else goes to standard output. So you can send
+it to a file or paste it into a document. GitHub draws Mermaid in a `README` and
+in a pull request.
+
+```mermaid
+graph LR
+  gdomain["domain"]
+  gdata["data"]
+  gpresentation["presentation"]
+  gcomposition["composition"]
+  gcomposition -- "×3" --> gdata
+  gcomposition -- "×13" --> gpresentation
+  gdata -- "×1" --> gdomain
+  gpresentation -- "×9 not allowed" --> gdata
+  gpresentation -- "×11" --> gdomain
+  linkStyle 3 stroke:#c0392b,stroke-width:2px,color:#c0392b
+```
+
+That is `--roles` on a real application. One line says what a list of ninety-one
+violations cannot: nine screens reach storage.
 
 ### Output options
 
@@ -290,6 +322,46 @@ An old project has violations. Do not try to correct all of them.
 5. Correct the accepted violations when you change the code near them.
 
 The recorded number decreases. It does not increase.
+
+---
+
+## Freeze, and how it differs from a baseline
+
+Both commands accept the project as it is today. They accept different things.
+
+- `baseline` accepts each **violation**. One entry for each finding. On a large
+  project that is three thousand lines of accepted debt in a file nobody reads.
+- `freeze` accepts the **shape**. Each layer's list of what it may depend on
+  becomes the set of layers its code reaches today. Nothing that exists is
+  reported. An edge that did not exist today is refused tomorrow.
+
+On a legacy project, start with `freeze`. The file is small, it reads as
+architecture and not as a list, and the number of permitted edges can only
+decrease.
+
+```
+$ keystone-swift freeze
+
+Froze 2 layers into keystone-swift.json.
+
+  tightened  `data` no longer permits `domain`, `library` — nothing reaches it today
+  WIDENED    `presentation` now permits `data` — this is debt, not a decision
+```
+
+The command reads three kinds of evidence. It reads the dependency in the
+manifest, the `import` in the file, and the type that one layer names in
+another. The third is the only evidence that a single-target application has.
+
+`freeze` moves in two directions. Where a layer reaches less than the rules
+permit, the rules become tighter. Where a layer reaches more, the rules become
+looser. Each layer that becomes looser is written with a reason that says it was
+frozen and not chosen. Use `--dry-run` to see the change first.
+
+A layer that can already depend on anything stays as it is. A layer with no
+modules in it also stays as it is, because it has told the tool nothing.
+
+Measured on `nextcloud/ios`, `freeze` took `type-reference-boundary` from 166
+violations to none, and changed no other rule.
 
 ---
 

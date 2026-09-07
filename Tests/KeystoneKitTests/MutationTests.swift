@@ -210,6 +210,61 @@ struct BoundaryMutationTests {
     }
 }
 
+@Suite("Freeze")
+struct FreezeTests {
+    /// The whole contract in one test: what exists today stops being reported,
+    /// and the next edge is refused.
+    @Test("freezing accepts today's edges and refuses the next one")
+    func freezeAcceptsTodayAndRefusesTomorrow() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        // A screen reaching storage. Refused by the preset.
+        try fixture.prepend("UI/CatalogUI/Sources/UI/CatalogViewModel.swift", "import CatalogData\n")
+        #expect(try fixture.check().erroringRules.contains("dependency-rule"))
+
+        #expect(Commands.freeze(Arguments(["freeze", "--root", fixture.root])) == ExitCode.clean)
+
+        // Now permitted, because the project froze its own shape.
+        #expect(!(try fixture.check().erroringRules.contains("dependency-rule")))
+
+        // And the manifest says out loud that this was debt rather than a
+        // decision, so nobody reads the allow-list as an endorsement.
+        let configuration = try fixture.configuration()
+        let reason = configuration.roles["presentation"]?.reason ?? ""
+        #expect(reason.contains("Frozen"))
+
+        // A different edge, which did not exist when freeze ran, is still
+        // refused. Without this the command is just a slower baseline.
+        try fixture.prepend("UI/CatalogUI/Sources/UI/CatalogListView.swift", "import Networking\n")
+        #expect(try fixture.check().erroringRules.contains("dependency-rule"))
+    }
+
+    @Test("freezing a clean project narrows it rather than widening it")
+    func freezeTightensACleanProject() throws {
+        let fixture = try Fixture.load("CleanApp")
+        defer { fixture.destroy() }
+
+        #expect(Commands.freeze(Arguments(["freeze", "--root", fixture.root])) == ExitCode.clean)
+
+        // Nothing was widened, so no role carries a frozen reason.
+        let configuration = try fixture.configuration()
+        for (_, definition) in configuration.roles {
+            #expect(!(definition.reason ?? "").contains("Frozen"))
+        }
+        #expect(try fixture.check().violations.isEmpty)
+    }
+
+    @Test("a layer with no modules is left alone rather than frozen to nothing")
+    func emptyLayersAreNotFrozen() throws {
+        let fixture = try Fixture.load("MonolithApp")
+        defer { fixture.destroy() }
+
+        #expect(Commands.freeze(Arguments(["freeze", "--root", fixture.root])) == ExitCode.clean)
+        #expect(try fixture.check().violations.isEmpty)
+    }
+}
+
 @Suite("Placement")
 struct PlacementMutationTests {
     @Test("a view model in the domain is refused")

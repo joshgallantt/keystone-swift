@@ -36,6 +36,8 @@ public enum CommandLineInterface {
         case "check", "": return Commands.check(parsed)
         case "status": return Commands.status(parsed)
         case "baseline": return Commands.baseline(parsed)
+        case "freeze": return Commands.freeze(parsed)
+        case "graph": return Commands.graph(parsed)
         case "rules": return Commands.rules(parsed)
         case "hook": return Commands.hook(parsed)
         case "install": return Commands.install(parsed)
@@ -72,7 +74,8 @@ public struct Arguments: Sendable {
     /// than ignored.
     static let switches: Set<String> = [
         "changed", "dry-run", "force", "include-accepted", "json", "list",
-        "no-colour", "staged", "user", "help", "h", "version", "v"
+        "no-colour", "staged", "user", "help", "h", "version", "v",
+        "roles", "refused"
     ]
 
     public init(_ arguments: [String]) {
@@ -158,6 +161,8 @@ public enum Help {
       check             Check the project against the configuration          (default)
       status            Show which layers exist, what is unclassified, and the debt
       baseline          Record today's violations as accepted, so only new ones fail
+      freeze            Narrow each layer's allow-list to the edges that exist today
+      graph             Print the module graph as Mermaid, refused edges in red
       rules             Print the architecture as a document for an agent to read
       rules --list      Show every rule, its severity, and whether it runs
       hook              Answer an agent hook; reads the payload on stdin
@@ -174,6 +179,14 @@ public enum Help {
       --since <ref>     Changes since a specific ref rather than the merge base
       --at <ref>        Read the project as it was at a ref, whatever the selection
       --file <path>     One file, with its content on stdin
+
+    GRAPH OPTIONS
+      (nothing)         Every module, grouped by layer
+      --roles           Collapse to the layer graph, with a count on each edge
+      --refused         Only the refused edges and the modules they touch
+
+    FREEZE OPTIONS
+      --dry-run         Say what would change without writing the manifest
 
     CHECK OPTIONS
       --json            Machine-readable output

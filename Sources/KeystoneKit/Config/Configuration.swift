@@ -79,6 +79,39 @@ public struct Configuration: Sendable {
         roles[role.rawValue]
     }
 
+    /// Whether a module of `from` may depend on a module of `to`, accounting
+    /// for the same-role policy and for whether the two live in one package.
+    ///
+    /// The single answer to that question. `RuleContext` forwards here, and so
+    /// does `graph`, so the edge a report calls refused is the edge the picture
+    /// draws in red.
+    public func permits(
+        from: Role,
+        to: Role,
+        fromPackage: String?,
+        toPackage: String?
+    ) -> DependencyVerdict {
+        guard let definition = definition(for: from) else { return .permitted }
+
+        if from == to {
+            switch definition.sameRole {
+            case .allow:
+                return .permitted
+            case .deny:
+                return .sameRoleRefused
+            case .denyAcrossPackages:
+                let same = fromPackage != nil && fromPackage == toPackage
+                return same ? .permitted : .sameRoleRefused
+            }
+        }
+
+        guard definition.mayDepend(on: to) else { return .roleRefused }
+        // The other layer also gets a say. `composition` may depend on anything,
+        // which is exactly why something has to be able to refuse it.
+        guard self.definition(for: to)?.isVisible(to: from) ?? true else { return .notVisible }
+        return .permitted
+    }
+
     public func severity(for rule: String, default fallback: Severity) -> Severity {
         severities[rule] ?? fallback
     }
