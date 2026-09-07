@@ -45,6 +45,7 @@ Each report of a violation gives you four items:
 [The configuration file](#the-configuration-file) ·
 [Agents](#agents) ·
 [Continuous integration](#continuous-integration) ·
+[Compiler features to use with this tool](#compiler-features-to-use-with-this-tool) ·
 [A SwiftLint config to go with it](#a-swiftlint-config-to-go-with-it) ·
 [Evidence](#evidence) ·
 [Limits](#limits) ·
@@ -54,10 +55,13 @@ Each report of a violation gives you four items:
 
 ## What the tool does
 
-The Swift compiler stops a module when that module uses a symbol that it cannot
-see. This is a strong control. But the compiler cannot see the difference
-between a screen and a business rule. Two types in one module are equal to the
-compiler.
+The Swift compiler stops a module when that module uses a symbol that access
+control hides. This is a strong control. But the compiler cannot see the
+difference between a screen and a business rule. Two types in one module are
+equal to the compiler.
+
+The compiler also does less than most people expect. See
+[Compiler features to use with this tool](#compiler-features-to-use-with-this-tool).
 
 keystone-swift adds that difference. The tool puts each file into a layer. Then
 the tool applies the rules of that layer.
@@ -370,6 +374,57 @@ The reference project is
 [Real-Clean-Architecture-in-iOS-Example](https://github.com/joshgallantt/Real-Clean-Architecture-in-iOS-Example).
 The tool must report no violation for that project, and the tool must do this
 with no configuration file. This is the most important test of each change.
+
+---
+
+## Compiler features to use with this tool
+
+A rule the compiler applies is stronger than a rule this tool reports. Turn on
+what the compiler can do first. Then use this tool for the part that is left.
+
+All of the results below were measured with Swift 6.3.3.
+
+### What the compiler does enforce
+
+| Feature | What it stops |
+| --- | --- |
+| `internal import Foo` (SE-0409) | A public declaration that uses a type from `Foo`. The compiler gives an error: "method cannot be declared public because its result uses an internal type". |
+| `package` access (SE-0386) | Use of the declaration from a different package. The compiler cannot find the name. |
+| `internal`, `private`, `fileprivate` | Use from outside the module, the type, or the file. |
+
+Two upcoming features are more important than they look. Turn them on for each
+target in `Package.swift`:
+
+```swift
+.target(
+    name: "Catalog",
+    swiftSettings: [
+        .enableUpcomingFeature("InternalImportsByDefault"),
+        .enableUpcomingFeature("MemberImportVisibility"),
+    ]
+)
+```
+
+- **`InternalImportsByDefault`** makes each `import` internal. Then a module
+  cannot pass a dependency through its own public API by accident. Swift 6 does
+  **not** do this for you: an `import` with no access level is still public, in
+  Swift 5 and in Swift 6. Many articles say the opposite. They are wrong.
+- **`MemberImportVisibility`** stops a file from using an extension member of a
+  module that the file does not import. Without it, a file can use a module and
+  show no `import` for it. This tool reads imports, so this feature makes this
+  tool more correct also.
+
+### What the compiler does not enforce
+
+| What people expect | What happens |
+| --- | --- |
+| A target can import only its declared dependencies | **False.** A target that declares `Data` can `import Domain` and the build is clean. All built modules are in one search path. The issue is open from 2016. |
+| `swift build --explicit-target-dependency-import-check error` catches that | **It did not.** The flag is accepted, and the same build stayed clean on both build systems. |
+| A target that is not a product is private to its package | **False.** A different package imported a target that was not a product, used a symbol from it, and the executable built, linked and ran. |
+
+This is the gap this tool fills. The compiler holds an access-control rule. It
+does not hold a build-graph rule, so `dependency-rule`, `not-visible` and
+`dependencies-are-used` do.
 
 ---
 
