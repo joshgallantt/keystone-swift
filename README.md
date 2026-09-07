@@ -113,7 +113,9 @@ answer is the answer.
    tests. So a driver that holds a fake store is still a test.
 3. **The kind of the target.** A manifest that declares a `.testTarget` states a
    fact. An Xcode target of the kind "application" also states a fact. But the
-   tool uses the application target only in some conditions. See below.
+   tool uses an application target only when most of the Swift files of the
+   project are outside that target. A project with one target has no modules to
+   connect, so that target is not the composition root.
 4. **What the file declares itself to be.** Examples are a type that conforms to
    `View`, an `@main` attribute, and a subclass of `NSManagedObject`. The
    compiler examines a conformance, so a conformance stays correct.
@@ -128,54 +130,6 @@ answer is the answer.
 
 If no test gives an answer, the file has no layer. The tool reports this
 condition with `unclassified-files`. The tool does not decide without evidence.
-
-### Why a declaration wins against a directory name
-
-A directory name shows what a person wanted. A conformance shows what that
-person wrote. The compiler agrees with the conformance.
-
-The file `WordPressIntelligence/UseCases/TranslationViewModel.swift` declares
-`ObservableObject` and `View`. When the directory name won, the tool put this
-file in the domain. The tool then reported seven violations for that file. Two
-of the seven told the author to move a file that the author did not move.
-
-The same fault happened in three more forms:
-
-- A directory with the name `Utilities` made a `ViewModifier` a library.
-- A directory with the name `Entity` made an `NSManagedObject` the domain.
-- A directory with the name `Library` made a bookmarks panel a library.
-
-### Why the tool reads a use last
-
-A file in `Domain/` that uses `URLSession` is a domain file. That file does
-something that the domain refuses, and `restricted-symbols` reports it.
-
-If the tool reads that file as `data`, because the file uses a session, the tool
-deletes its own report. The tool agrees with the fault.
-
-So a declaration can win against a directory name, but a use cannot win.
-
-A use is still evidence, and the tool needs it. When the tool did not read a
-use, 717 files in the sample had no layer. A file with no layer gets no
-examination.
-
-### Why an application target is not always the composition root
-
-Composition is the layer that connects modules. A project with one target has no
-modules to connect.
-
-UTM is one application target with 221 Swift files. The tool gave the layer
-`composition` to all 221 files. That layer refuses nothing, so no rule examined
-any of the files. Then `status` reported "100% of Swift files are inside the
-architecture" for a project that the tool did not read.
-
-The tool now applies one condition to an application target. Most of the Swift
-files of the project must be outside that target. UTM now reports 153 screens,
-23 data files, 5 composition files, and 40 files with no layer.
-
-The tool records which files got a layer from test 3 only. Such a file tells you
-nothing about itself. So `type-reference-boundary` does not report these
-files. A boundary between a layer and a default is not a boundary.
 
 ---
 
