@@ -31,6 +31,40 @@ Each report of a violation gives you four items:
     Robert C. Martin, Clean Architecture (2017), Ch. 22 — The Dependency Rule.
 ```
 
+The reference project this tool is measured against, drawn by the tool itself
+with `keystone-swift graph --roles`. Each arrow carries the number of
+module-to-module dependencies behind it. A refused dependency would be red:
+
+```mermaid
+graph LR
+  gdomain["domain"]
+  gdata["data"]
+  gpresentation["presentation"]
+  gcomposition["composition"]
+  glibrary["library"]
+  gtestSupport["testSupport"]
+  gtests["tests"]
+  gcomposition -- "×14" --> gdata
+  gcomposition -- "×46" --> gdomain
+  gcomposition -- "×1" --> glibrary
+  gcomposition -- "×25" --> gpresentation
+  gdata -- "×22" --> gdomain
+  gdata -- "×1" --> glibrary
+  gpresentation -- "×27" --> gdomain
+  gtestSupport -- "×40" --> gdomain
+  gtestSupport -- "×19" --> gpresentation
+  gtests -- "×10" --> gcomposition
+  gtests -- "×8" --> gdata
+  gtests -- "×120" --> gdomain
+  gtests -- "×1" --> glibrary
+  gtests -- "×50" --> gpresentation
+  gtests -- "×98" --> gtestSupport
+```
+
+Read the arrows inward. `presentation` reaches `domain` and nothing else.
+`data` reaches `domain` and `library`, and never a screen. `composition` is the
+one layer that touches everything, which is why nothing else has to.
+
 ---
 
 ## Contents
@@ -286,6 +320,27 @@ graph LR
 That is `--roles` on a real application. One line says what a list of ninety-one
 violations cannot: nine screens reach storage.
 
+`--refused` then names them:
+
+```
+%% keystone-swift graph --refused
+%% 21 modules, 75 dependencies, 9 refused
+graph LR
+  subgraph gdata["data"]
+    m14["NetworkClient"]
+  end
+  subgraph gpresentation["presentation"]
+    m0["Account"]
+    m2["AppAccount"]
+    …
+  end
+  m0 -- "not allowed" --> m14
+  m2 -- "not allowed" --> m14
+```
+
+Nine screens, one module between them and the network. That is one afternoon of
+work, and the picture is how you know it is one and not nine.
+
 ### Output options
 
 | Option | What it does |
@@ -314,14 +369,26 @@ that tool is not sure.
 An old project has violations. Do not try to correct all of them.
 
 1. Run `keystone-swift status`. Read how much of the project has a layer.
-2. Correct the unclassified files first. A file with no layer gets no
+2. Run `keystone-swift graph --roles`. One picture of the layers, with the
+   refused edges in red. This is what you show the team.
+3. Correct the unclassified files first. A file with no layer gets no
    examination. Move the file, or exclude the file on purpose.
-3. Run `keystone-swift baseline`. This command records the violations of today
-   as accepted debt.
-4. Run `keystone-swift --changed` in your work. Only new violations fail.
-5. Correct the accepted violations when you change the code near them.
+4. Run `keystone-swift freeze`. This command narrows each layer's allow-list to
+   the edges that exist today, so no current dependency is reported and each new
+   one is refused. Read the lines marked `WIDENED`: they are the work.
+5. Run `keystone-swift baseline` for what is left. The frozen rules now hold the
+   boundaries. So this records the other rules only, and the file is much
+   smaller than it would be without step 4.
+6. Run `keystone-swift --changed` in your work. Only new violations fail.
+7. Delete a widened line from the manifest when you break that dependency. Run
+   `keystone-swift graph --refused` to see what is left.
 
-The recorded number decreases. It does not increase.
+Both numbers decrease. Neither increases.
+
+Use `freeze` before `baseline`, not instead of it. `freeze` holds the shape of
+the architecture, which is a few lines. `baseline` holds each remaining
+violation, one line each. Running `baseline` first on a large project records
+thousands of boundary findings that `freeze` would have removed in one step.
 
 ---
 
