@@ -49,6 +49,7 @@ Each report of a violation gives you four items:
 [A SwiftLint config to go with it](#a-swiftlint-config-to-go-with-it) ·
 [Evidence](#evidence) ·
 [Limits](#limits) ·
+[Licence](#licence) ·
 [Sources](#sources)
 
 ---
@@ -474,6 +475,31 @@ The tool has these limits today. `TODO.md` records each limit.
   layer.
 - **Behaviour.** The tool reads structure. See
   [What the tool does not detect](#what-the-tool-does-not-detect).
+
+---
+
+## Licence
+
+Apache License 2.0. See `LICENSE`.
+
+**Attribution is required.** Section 4(d) of the licence applies to a derivative
+work that you distribute. Such a work must carry a readable copy of the
+attribution notices in the `NOTICE` file. That file names the author and links
+to this repository. So the credit and the link travel with the code:
+
+```
+Author:   Josh Gallant  (https://github.com/joshgallantt)
+Project:  https://github.com/joshgallantt/keystone-swift
+```
+
+Apache 2.0 was chosen instead of MIT for two reasons. It has the `NOTICE`
+mechanism, which is what makes the attribution requirement specific. It also
+grants patent rights, which a company needs before it can adopt a tool.
+
+Two limits to know. The requirement applies when you **distribute** a derivative
+work. A person who runs the tool, or reads the source, does not distribute
+anything, so nothing is owed. Also, this is a statement of what the licence says.
+It is not legal advice.
 
 ---
 
