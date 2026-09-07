@@ -35,9 +35,14 @@ extension Commands {
             lines.append("  \(pad("unclassified", 14)) \(pad("\(unclassified)", 6)) files   not examined by any rule")
         }
 
+        // Rounded down, never up. At `.rounded()` a project with one unclassified
+        // file out of 415 printed "100% of Swift files are inside the
+        // architecture" on the line directly below "unclassified 1 files". A
+        // coverage number is a claim about what was examined, and the one
+        // direction it must never err in is the flattering one.
         let coverage = classified + unclassified == 0
             ? 100
-            : Int((Double(classified) / Double(classified + unclassified) * 100).rounded())
+            : Int((Double(classified) / Double(classified + unclassified) * 100).rounded(.down))
         lines.append("")
         lines.append("  \(coverage)% of Swift files are inside the architecture.")
 
