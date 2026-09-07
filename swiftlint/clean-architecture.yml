@@ -1,0 +1,505 @@
+# SwiftLint, pointed at the shape of a clean architecture.
+#
+# Every rule here was measured against the reference project — 408 Swift files,
+# zero keystone-swift violations — and every one of them reports ZERO there. So
+# adopting this file whole does not bury you: what it reports is the distance
+# between your project and that one.
+#
+# What it cannot do. SwiftLint custom rules are REGEX over raw text. They cannot
+# read the module graph, cannot follow a dependency, and will match `import
+# UIKit` inside a comment or a string. The layer rules below are a cheap first
+# line that runs in Xcode as you type — they are not a substitute for a checker
+# that resolves the graph. Where a rule here stops, `keystone-swift` starts.
+#
+# Note also: `included` and `excluded` INSIDE a custom rule take REGEX, not
+# globs. The top-level `excluded` takes globs. This trips everyone once.
+
+excluded:
+  - "**/.build"          # a nested .build exists under every package; a bare `.build` misses them
+  - "**/build"
+  - "**/DerivedData"
+  - "**/Package.swift"   # a manifest is not source and fails half of these
+  - .claude
+  - tmp
+  - docs
+
+# ---------------------------------------------------------------------------
+# Thresholds, taken from the reference project's real maximums
+# ---------------------------------------------------------------------------
+# Each is set just above the largest real occurrence, so the rule catches
+# growth rather than re-litigating code that already exists. SwiftLint's own
+# defaults are noted where they differ, with what they would cost.
+
+line_length:            { warning: 140, error: 200 }   # default 120 → 30
+file_length:            { warning: 550, error: 800 }   # default 400 → 1
+type_body_length:       { warning: 280, error: 400 }   # default 250 → 2
+function_body_length:   { warning: 110, error: 150 }   # default  50 → 1
+cyclomatic_complexity:  { warning: 11,  error: 20 }    # default  10 → 1
+function_parameter_count: { warning: 6, error: 8 }     # default   5 → 1
+large_tuple:            { warning: 3,   error: 4 }     # default   2 → 1
+
+identifier_name:
+  min_length: { warning: 1, error: 0 }   # `di`, `to`, `i` are all legitimate here
+  max_length: { warning: 40, error: 60 }
+
+type_name:
+  min_length: { warning: 3, error: 0 }
+  max_length: { warning: 45, error: 60 }   # long double names: FakeObserveOfferedSettings…
+  allowed_symbols: ["_"]
+
+private_over_fileprivate:
+  validate_extensions: true
+
+disabled_rules:
+  # Six default rules the reference itself violates. Each is formatting, and
+  # each would put churn in a first commit that has nothing to do with
+  # architecture.
+  - vertical_whitespace              # 13 on the reference
+  - trailing_newline                 #  5
+  - legacy_swiftui_aspect_ratio      #  3
+  - trailing_whitespace              #  1
+  - unneeded_synthesized_initializer #  1
+  - implicit_optional_initialization #  1
+
+  # Default rules about where a brace, a colon or a comma goes. The reference
+  # passes all of them, so they are re-enabled in `formatting.yml`. They are off
+  # here because they are the loudest thing in this file on a codebase that has
+  # not adopted them — `opening_brace` alone is 282 across four sample apps —
+  # and a reformatting diff is the worst possible first impression for a rule
+  # set whose actual subject is layering.
+  - opening_brace
+  - colon
+  - comma
+  - trailing_comma
+  - comment_spacing
+  - closure_parameter_position
+  - empty_enum_arguments
+  - multiple_closures_with_trailing_closure
+  - shorthand_operator
+  - statement_position
+  - vertical_parameter_alignment
+  - unused_closure_parameter
+
+# ---------------------------------------------------------------------------
+# Opt-in rules the reference already passes
+# ---------------------------------------------------------------------------
+opt_in_rules:
+  # --- demonstrated: the reference contains code these could have caught -----
+  - duplicate_imports
+  - file_name
+  - file_name_no_space
+  - implicitly_unwrapped_optional
+  - lower_acl_than_parent
+  - private_swiftui_state
+  - redundant_final
+
+  # --- guardrails: the reference holds NOTHING these can match ---------------
+  # They score zero vacuously, so they are not evidence of its style. They are
+  # worth keeping as "do not start doing this", and they are honest about it.
+  - balanced_xctest_lifecycle
+  - discarded_notification_center_observer
+  - discouraged_assert
+  - discouraged_object_literal
+  - empty_xctest_method
+  - expiring_todo
+  - fallthrough
+  - fatal_error_message
+  - final_test_case
+  - ibinspectable_in_extension
+  - legacy_multiple
+  - legacy_uigraphics_function
+  - nslocalizedstring_key
+  - nslocalizedstring_require_bundle
+  - overridden_super_call
+  - override_in_extension
+  - private_action
+  - private_outlet
+  - prohibited_interface_builder
+  - prohibited_super_call
+  - single_test_class
+  - strong_iboutlet
+  - test_case_accessibility
+  - unavailable_function
+  - unowned_variable_capture
+  - weak_delegate
+  - xct_specific_matcher
+
+# NOT enabled, deliberately:
+#   object_literal          — demands what discouraged_object_literal forbids.
+#                             Both score zero here only because the project uses
+#                             neither. Enable both and the first person to touch
+#                             a colour literal is deadlocked.
+#   contrasted_opening_brace — 3,175 violations. A whole-codebase reformat.
+#   sorted_imports          — 256 violations. A convention the reference does
+#                             not hold; adopt it only if you mean to.
+#   explicit_acl            — 1,510 violations. See `domain_top_level_acl`
+#                             below for the version worth having.
+#   unused_import           — needs a compiler invocation, not measurable here.
+
+file_name:
+  excluded:
+    - main.swift
+    - LinuxMain.swift
+    # An aggregator: one file per component holding all its use case protocols.
+    - BagUseCases.swift
+    - HomeUseCases.swift
+    - OrderUseCases.swift
+    - ProductUseCases.swift
+    - SearchHistoryUseCases.swift
+    - SessionUseCases.swift
+    - SettingsUseCases.swift
+    - StockAlertUseCases.swift
+    - WishlistUseCases.swift
+    # Test files that group several suites under one narrative name.
+    - AuthViewModelTests.swift
+    - BagTests.swift
+    - Doubles.swift
+    - OrderTests.swift
+    - ProductValueObjectTests.swift
+    - SessionValueObjectTests.swift
+    - TheBagScreenTests.swift
+    - TheButtonsOnAProductTests.swift
+
+custom_rules:
+
+  # =========================================================================
+  # LAYER BOUNDARIES  —  EDIT THE `included` PATHS FOR YOUR PROJECT
+  # =========================================================================
+  # These assume the reference layout: Component/<Name>/Sources/{Domain,Data},
+  # UI/<Name>/Sources/<Name>UI, Library/<Name>/Sources. Change the path regexes
+  # and the rest of the file still applies unaltered.
+
+  domain_no_ui_framework:
+    name: "Domain imports a UI framework"
+    included: '/Component/[^/]+/Sources/Domain/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+(SwiftUI|UIKit|AppKit|WebKit)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "The domain states business rules. A screen is a detail: declare what you need as a protocol here and implement it where the framework is allowed."
+    severity: error
+
+  domain_no_infrastructure:
+    name: "Domain imports persistence or networking"
+    included: '/Component/[^/]+/Sources/Domain/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+(CoreData|SwiftData|CryptoKit|Networking)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "The domain owns no wire and no disk. Put the protocol here and the implementation in the data layer."
+    severity: error
+
+  domain_no_outward_module:
+    name: "Domain imports outward"
+    included: '/Component/[^/]+/Sources/Domain/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+[A-Z][A-Za-z0-9_]*(Data|UI|DI)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "Source dependencies point inward. The domain never names a Data, UI or DI module."
+    severity: error
+
+  data_no_ui:
+    name: "Data imports UI"
+    included: '/Component/[^/]+/Sources/Data/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+([A-Z][A-Za-z0-9_]*(UI|DI)|UIKit|AppKit|WebKit)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "The data layer answers to the domain and to nothing above it. If it needs something a screen has, invert the dependency."
+    severity: error
+
+  ui_no_data:
+    name: "UI imports a data module"
+    included: '/UI/[^/]+/Sources/[A-Za-z]*UI/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+([A-Z][A-Za-z0-9_]*(Data|DI)|Networking|CoreData|SwiftData)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "A screen reaches the domain and never storage. Take the use case protocol through the initialiser."
+    severity: error
+
+  library_no_app_modules:
+    name: "Library depends on the app"
+    included: '/Library/[^/]+/Sources/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+[A-Z][A-Za-z0-9_]*(Data|DI|UI|TestSupport)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "A library knows nothing about the app that links it. If it needs an app type, it is not a library."
+    severity: error
+
+  production_no_test_support:
+    name: "Production imports TestSupport"
+    included: '/(Component|UI)/[^/]+/Sources/(Domain|Data|DI|Navigation|[A-Za-z]*UI)/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+[A-Z][A-Za-z0-9_]*TestSupport\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "TestSupport is a separate target so it cannot ship. Importing it from production defeats the reason it exists."
+    severity: error
+
+  production_no_test_framework:
+    name: "Production imports a test framework"
+    included: '/(Component|UI|Library)/[^/]+/Sources/'
+    regex: '^[ \t]*(@[A-Za-z]+[ \t]+)?import[ \t]+(XCTest|Testing|SnapshotTesting)\b'
+    match_kinds: [keyword, identifier, attribute.builtin]
+    message: "A test framework in shipped code links it into the app."
+    severity: error
+
+  spy_stub_in_production:
+    name: "A double in production code"
+    regex: '\b(Spy|Stub)[A-Z]\w*'
+    excluded: ".*/(Tests|TestSupport)/.*"
+    excluded_match_kinds: [comment, doccomment, string]
+    message: "Spies and stubs live in TestSupport, never in shipped code."
+    severity: error
+
+  testable_import_outside_tests:
+    name: "@testable outside tests"
+    regex: '^[ \t]*@testable[ \t]+import\b'
+    excluded: ".*/(Tests|TestSupport)/.*"
+    message: "@testable reaches past a module's own access control. It belongs to test and test-support code only."
+    severity: error
+
+  # =========================================================================
+  # NAMING  —  portable, no path editing needed
+  # =========================================================================
+
+  no_mock_test_doubles:
+    name: "Mock is not in the taxonomy"
+    regex: '\b(?:final\s+)?(?:class|struct|actor|protocol|enum)\s+Mock[A-Z][A-Za-z0-9]*'
+    message: "Name the double for what it does: Stub (canned answers), Spy (records calls), Fake (a working lightweight implementation), Dummy (never used, fills a parameter). Meszaros, xUnit Test Patterns; Fowler, Mocks Aren't Stubs."
+    severity: error
+
+  test_double_taxonomy_prefix:
+    name: "Double without a taxonomy prefix"
+    regex: '\b(?:final\s+)?(?:class|struct|actor)\s+(?!(?:Stub|Spy|Fake|Dummy))[A-Z][A-Za-z0-9]*(?:UseCase|Repository|Navigation|Presenting|Store|Client|Service)\s*[:{]'
+    included: "(^|/)(TestSupport|Tests)/"
+    message: "A double standing in for a collaborator says which kind it is: Stub, Spy, Fake or Dummy."
+    severity: warning
+
+  banned_role_suffixes:
+    name: "Vague role suffix"
+    regex: '\b(?:class|struct|enum|actor|protocol|typealias)\s+[A-Z][A-Za-z0-9]*(?:Manager|Coordinator|Factory|Helper|Provider|Controller|Handler|Utils?|Utility|Info|Base|Impl)\b'
+    message: "Name the type for the role it plays — UseCase, Repository, Store, Client, Navigation, Presenter, ViewModel, DTO, DI — not for a responsibility bucket. The reference declares 515 types and not one of these."
+    severity: warning
+
+  acronym_casing_in_type_names:
+    name: "Acronym casing"
+    regex: '\b(?:class|struct|enum|actor|protocol|typealias)\s+[A-Z][A-Za-z0-9]*(?:Id|Url|Json|Http|Api|Dto|Uuid|Ui|Di)(?![a-z])'
+    message: "Acronyms are all-caps in a type name: ProductID, ImageURL, ProductDTO, AccountUIDI. In an identifier they are not: productId, imageURL."
+    severity: warning
+
+  use_case_protocol_suffix:
+    name: "Use case protocol suffix"
+    regex: '^[ \t]*(?:public |package |internal )?protocol\s+(?![A-Za-z0-9]*UseCase\b)[A-Z][A-Za-z0-9]*'
+    included: "(^|/)Domain/UseCases/[^/]+\\.swift$"
+    message: "A protocol in Domain/UseCases is named <Verb><Noun>UseCase."
+    severity: warning
+
+  use_case_impl_default_prefix:
+    name: "Use case implementation prefix"
+    regex: '^[ \t]*(?:public |package |internal )?(?:final\s+)?(?:struct|class|actor)\s+(?!Default[A-Za-z0-9]*UseCase\b)[A-Z][A-Za-z0-9]*[ \t]*[:<]'
+    included: "(^|/)Domain/UseCases/Impl/"
+    message: "The production implementation of a use case is Default<ProtocolName>, one per file."
+    severity: warning
+
+  repository_protocol_suffix:
+    name: "Repository protocol suffix"
+    regex: '^[ \t]*(?:public |package |internal )?protocol\s+(?![A-Za-z0-9]*Repository\b)[A-Z][A-Za-z0-9]*'
+    included: "(^|/)Domain/Repository/"
+    message: "A protocol in Domain/Repository is named <Aggregate>Repository."
+    severity: warning
+
+  navigation_protocol_suffix:
+    name: "Navigation protocol suffix"
+    regex: '^[ \t]*(?:public |package |internal )?protocol\s+(?![A-Za-z0-9]*Navigation\b)[A-Z][A-Za-z0-9]*'
+    included: "(^|/)Sources/Navigation/"
+    message: "A protocol in Sources/Navigation is named <Feature>Navigation. The reference has no Coordinator and no Router."
+    severity: warning
+
+  data_port_protocol_suffix:
+    name: "Data port protocol suffix"
+    regex: '^(?:public |package |internal )?protocol\s+(?![A-Za-z0-9]*(?:Store|Client|Service|Repository)\b)[A-Z][A-Za-z0-9]*'
+    included: "(^|/)Sources/Data/"
+    message: "An outbound port is a Store (local), a Client (remote), a Service (external capability) or a Repository (aggregate)."
+    severity: warning
+
+  di_container_suffix:
+    name: "DI container suffix"
+    regex: '^[ \t]*(?:public |package |internal )?(?:final\s+)?(?:struct|class|enum|actor)\s+(?![A-Za-z0-9]*DI\b)[A-Z][A-Za-z0-9]*'
+    included: "(^|/)[A-Za-z]*DI/[A-Za-z]*DI\\.swift$"
+    message: "A composition-root container is <Module>DI and is the only type in its file."
+    severity: warning
+
+  swiftui_view_suffix:
+    name: "SwiftUI view suffix"
+    regex: '^(?:public |package |internal )?struct\s+(?![A-Za-z0-9]*(?:View|Screen|Button|Row|Section|Header|Carousel|Card|Sheet|Bar|Modifier)\b)[A-Z][A-Za-z0-9]*(?:<[^>]*>)?\s*:\s*(?:[A-Za-z0-9.]+\s*,\s*)*View\b'
+    message: "A view type ends in View, Screen, Button, Row, Section, Header, Carousel, Card, Sheet, Bar or Modifier."
+    severity: warning
+
+  # =========================================================================
+  # ACCESS CONTROL
+  # =========================================================================
+
+  non_final_class:
+    name: "Non-final class"
+    regex: '^[ \t]*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)\n]*\))?[ \t]+)*(?:(?:open|public|package|internal|fileprivate|private)[ \t]+)?class[ \t]+[A-Za-z_]'
+    message: "Every one of the 97 classes in the reference is final. Inheritance is a coupling nobody asked for."
+    severity: warning
+
+  explicit_internal_acl:
+    name: "Redundant internal keyword"
+    regex: '^[ \t]*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)\n]*\))?[ \t]+)*internal[ \t]+'
+    message: "internal is the default. Drop the keyword."
+    severity: warning
+
+  domain_top_level_acl:
+    name: "Domain declaration without an access level"
+    regex: '^(?:final[ \t]+|indirect[ \t]+)*(?:class|struct|enum|protocol|actor|typealias|func|var|let|subscript)[ \t]+[A-Za-z_]'
+    included: ".*/Sources/Domain/.*"
+    message: "A top-level domain declaration states its access level. This is the layer other modules read, so its surface is deliberate."
+    severity: warning
+
+  public_in_test_target:
+    name: "public in a test target"
+    regex: '^[ \t]*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)\n]*\))?[ \t]+)*(?:public|open)[ \t]'
+    included: ".*/Tests/.*"
+    message: "A test target exports nothing. If a type is public so a test can see it, the test is reaching too far."
+    severity: warning
+
+  public_mutable_stored_property:
+    name: "Public mutable stored property"
+    regex: '^[ \t]+(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)\n]*\))?[ \t]+)*public[ \t]+var[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*(?::[^={\n]*)?='
+    included: ".*/Sources/.*"
+    excluded: ".*/Sources/TestSupport/.*"
+    message: "Public state is read-only from outside: public private(set) var."
+    severity: warning
+
+  # =========================================================================
+  # TESTS
+  # =========================================================================
+
+  no_xctest_import:
+    name: "XCTest import"
+    regex: '^[ \t]*(@testable[ \t]+)?import[ \t]+XCTest\b'
+    message: "This layout tests with swift-testing: @Suite, @Test, #expect. Remove this rule if your project has not moved."
+    severity: error
+
+  no_xctest_api:
+    name: "XCTest API"
+    regex: '\b(XCTAssert\w*|XCTFail|XCTUnwrap|XCTestCase|XCTestExpectation|XCTSkip\w*|XCTMain)\b'
+    excluded_match_kinds: [comment, doccomment]
+    message: "Use #expect and #require."
+    severity: error
+
+  testing_import_scope:
+    name: "Testing imported outside a test target"
+    regex: '^[ \t]*import[ \t]+Testing\b'
+    excluded: ".*/Tests/.*"
+    message: "Only test targets import Testing. TestSupport ships as a library and stays framework-free."
+    severity: warning
+
+  suite_display_name:
+    name: "Suite without a display name"
+    regex: '@Suite\b(?!\(")'
+    message: "@Suite carries prose: @Suite(\"What a bag is worth\"). The name is read by whoever is looking at a failure."
+    severity: warning
+
+  suite_display_name_capitalised:
+    name: "Suite display name not capitalised"
+    regex: '@Suite\("[^A-Z"]'
+    message: "A suite name is a title and starts with a capital."
+    severity: warning
+
+  test_display_name_is_prose:
+    name: "Test display name is one word"
+    regex: '@Test\("[^" ]*"'
+    message: "A @Test name is a sentence, not the function name repeated."
+    severity: warning
+
+  test_display_name_capitalised:
+    name: "Test display name not capitalised"
+    regex: '@Test\("[^A-Z"]'
+    message: "A test name is a sentence and starts with a capital."
+    severity: warning
+
+  no_test_prefixed_function:
+    name: "test-prefixed function"
+    regex: '\bfunc[ \t]+test[A-Z0-9_]'
+    message: "Name the function for the behaviour. The sentence goes in @Test(\"…\")."
+    severity: warning
+
+  suite_must_be_struct:
+    name: "Suite is a reference type"
+    regex: '^[ \t]*(public[ \t]+)?(final[ \t]+)?(class|actor)[ \t]+\w*(Tests|Snapshots)\b'
+    message: "Suites are structs. swift-testing gives each test a fresh instance, so shared mutable state between tests is a bug you cannot see."
+    severity: warning
+
+  test_suite_type_suffix:
+    name: "Test type without the Tests suffix"
+    regex: '^(?:public |package |internal )?(?:final\s+)?(?:struct|class|enum|actor)\s+(?![A-Za-z0-9]*Tests\b)[A-Z][A-Za-z0-9]*'
+    included: "(^|/)Tests/"
+    excluded: "/Support/"
+    message: "A top-level type in a test target is a suite, named *Tests. Fixtures, personas and doubles go in Support/."
+    severity: warning
+
+  test_file_name_suffix:
+    name: "Test file name"
+    regex: '\A'
+    included: "(^|/)Tests/"
+    excluded: "(/Support/|Tests\\.swift$|Snapshots\\.swift$)"
+    message: "A file in a test target is *Tests.swift or *Snapshots.swift. Shared scaffolding goes in Support/."
+    severity: warning
+
+  suite_file_no_reference_types:
+    name: "Class in a suite file"
+    regex: '^[ \t]*(public[ \t]+)?(open[ \t]+)?(final[ \t]+)?(class|actor)[ \t]+\w'
+    included: ".*/Tests/.*"
+    excluded: ".*/Tests/[^/]+/Support/.*"
+    message: "Reference-type drivers and helpers live in Tests/<Target>/Support/."
+    severity: warning
+
+  support_dir_no_suites:
+    name: "Suite in Support/"
+    regex: '@(Test|Suite)\b'
+    included: ".*/Tests/[^/]+/Support/.*"
+    message: "Support/ holds drivers and fixtures. Tests live in a *Tests.swift file."
+    severity: warning
+
+  snapshot_testing_scope:
+    name: "SnapshotTesting outside a snapshot target"
+    regex: '^[ \t]*(@testable[ \t]+)?import[ \t]+SnapshotTesting\b'
+    excluded: ".*SnapshotTests/.*"
+    message: "SnapshotTesting belongs to *SnapshotTests targets, which are recorded and run separately."
+    severity: warning
+
+  no_assert_in_tests:
+    name: "assert in a test"
+    regex: '\b(assert|precondition|assertionFailure|preconditionFailure)\('
+    included: ".*/(Tests|Sources/TestSupport)/.*"
+    excluded_match_kinds: [comment, doccomment, string]
+    message: "Assert with #expect or #require, so a failure is reported as a test failure rather than a trap."
+    severity: warning
+
+  spy_prefix:
+    name: "Spies/ holds a type without the Spy prefix"
+    regex: '^(public[ \t]+)?(final[ \t]+)?(class|struct|actor|enum)[ \t]+(?!Spy)\w'
+    included: ".*/Sources/TestSupport/Spies/.*"
+    message: "A top-level type in Spies/ is Spy<Collaborator>."
+    severity: warning
+
+  stub_prefix:
+    name: "Stubs/ holds a type without the Stub prefix"
+    regex: '^(public[ \t]+)?(final[ \t]+)?(class|struct|actor|enum)[ \t]+(?!Stub)\w'
+    included: ".*/Sources/TestSupport/Stubs/.*"
+    message: "A top-level type in Stubs/ is Stub<Collaborator>."
+    severity: warning
+
+  fake_prefix:
+    name: "Fakes/ holds a type without the Fake prefix"
+    regex: '^(public[ \t]+)?(final[ \t]+)?(class|struct|actor|enum)[ \t]+(?!Fake)\w'
+    included: ".*/Sources/TestSupport/Fakes/.*"
+    message: "A top-level type in Fakes/ is Fake<Collaborator>."
+    severity: warning
+
+  testsupport_double_is_final:
+    name: "Non-final double"
+    regex: '^(public[ \t]+)?class[ \t]+\w'
+    included: ".*/Sources/TestSupport/.*"
+    message: "Doubles are final classes or structs. Nothing subclasses a double."
+    severity: warning
+
+  testsupport_taxonomy_dirs:
+    name: "Double at the root of TestSupport"
+    regex: '(?s)\A.'
+    included: '.*/Sources/TestSupport/[^/]+\.swift$'
+    message: "Sort it into TestSupport/Fakes, /Spies, /Stubs, /Builders or /Helpers. The directory is what tells a reader which kind of double this is."
+    severity: warning

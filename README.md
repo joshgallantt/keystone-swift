@@ -45,6 +45,7 @@ Each report of a violation gives you four items:
 [The configuration file](#the-configuration-file) ·
 [Agents](#agents) ·
 [Continuous integration](#continuous-integration) ·
+[A SwiftLint config to go with it](#a-swiftlint-config-to-go-with-it) ·
 [Evidence](#evidence) ·
 [Limits](#limits) ·
 [Sources](#sources)
@@ -369,6 +370,25 @@ The reference project is
 [Real-Clean-Architecture-in-iOS-Example](https://github.com/joshgallantt/Real-Clean-Architecture-in-iOS-Example).
 The tool must report no violation for that project, and the tool must do this
 with no configuration file. This is the most important test of each change.
+
+---
+
+## A SwiftLint config to go with it
+
+`swiftlint/` holds two SwiftLint configurations derived from the reference
+project by measurement. Each one reports zero violations on its 408 files.
+
+| File | What it applies |
+| --- | --- |
+| `clean-architecture.yml` | Layer imports, naming, access control, test conventions |
+| `clean-architecture-strict.yml` | The same, and 54 style rules also |
+
+Copy one file to the root of your repository as `.swiftlint.yml`.
+
+SwiftLint custom rules are regular expressions. They cannot read the module
+graph, and they match text in a comment or in a string. So the layer rules there
+are a first line that runs in Xcode while you write, and this tool does the part
+that needs the graph. See `swiftlint/README.md`.
 
 ---
 
